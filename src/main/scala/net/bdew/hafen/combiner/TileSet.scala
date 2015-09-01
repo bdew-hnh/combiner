@@ -34,8 +34,8 @@ case class TileSet(tiles: Map[Coord, MapTile]) {
   lazy val maxX = tiles.keys.map(_.x).max
   lazy val minY = tiles.keys.map(_.y).min
   lazy val maxY = tiles.keys.map(_.y).max
-  lazy val width = maxX - minX
-  lazy val height = maxY - minY
+  lazy val width = maxX - minX + 1
+  lazy val height = maxY - minY + 1
 
   def saveCombined(output: File): Unit = {
     val result = new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
