@@ -51,6 +51,7 @@ object FingerPrintDatabase {
         .takeWhile(_ != null)
         .map(_.split(":"))
         .filter(_.size > 1)
+        .filterNot(x => BadHashes.bad.contains(x(1)))
         .map(x => x(0) -> x(1))
         .toMap
     } else {
