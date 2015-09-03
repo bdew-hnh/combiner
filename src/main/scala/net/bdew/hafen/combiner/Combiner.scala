@@ -64,6 +64,8 @@ object Combiner {
     } else {
       writeMergedImages(inputs.head, merged, args.grid)
     }
+
+    println("*** All done! ***")
   }
 
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean): Unit = {
