@@ -27,83 +27,38 @@ package net.bdew.hafen.combiner
 
 import java.io.File
 
-import scala.annotation.tailrec
-
 object Combiner {
   final val TILE_SIZE = 100
 
-  def main(args: Array[String]): Unit = {
-    val workDir =
-      if (args.length >= 1)
-        new File(args.head)
+  def main(params: Array[String]): Unit = {
+    val args = Args.parse(params)
+    val inputs =
+      if (args.inputs.isEmpty)
+        List(new File("map"))
       else
-        new File(System.getProperty("user.dir"), "map")
+        args.inputs.map(new File(_))
 
-    println(" * Source Directory: " + workDir.getAbsolutePath)
+    val inputSets = inputs map InputSet.load
 
-    if (!workDir.isDirectory || !workDir.canRead) sys.error("Unable to read source directory")
+    val inputSet =
+      if (inputSets.isEmpty) {
+        println("No valid inputs")
+        sys.exit()
+      } else if (inputSets.size > 1) {
+        inputSets.tail.foldRight(inputSets.head)(_.merge(_))
+      } else {
+        inputSets.head
+      }
 
-    val tileSets = findInputSets(workDir)
-    val fpDatabase = new FingerPrintDatabase(new File(workDir, "fingerprints.txt"))
+    if (args.merge.isDefined) {
+      sys.error("Not implemented")
+    } else {
+      val merged = inputSet.mergeTiles
 
-    val (found, missing) = tileSets.flatMap(_.tiles.values).partition(f => fpDatabase.hashMap.isDefinedAt(f.name))
-
-    if (found.nonEmpty)
-      println(" * Found fingerprints for %d tiles".format(found.size))
-
-    if (missing.nonEmpty)
-      println(" ! Missing fingerprints for %d tiles".format(missing.size))
-
-    val tileFpMap = found.map(t => t -> fpDatabase.hashMap(t.name)).toMap
-
-    val merged = doMergeAll(tileSets, tileFpMap)
-
-    for ((t, i) <- merged.zipWithIndex) {
-      println(" + Writing set #%d with %d images to combined_%d.png".format(i, t.tiles.size, i))
-      t.saveCombined(new File(workDir, "combined_%d.png".format(i)))
+      for ((t, i) <- merged.zipWithIndex) {
+        println(" + Writing set #%d with %d images to combined_%d.png".format(i, t.tiles.size, i))
+        t.saveCombined(new File(inputs.head, "combined_%d.png".format(i)))
+      }
     }
-  }
-
-  @tailrec
-  def doMergeAll(sets: List[TileSet], fpMap: Map[MapTile, String]): List[TileSet] = {
-    print(" * Merging, %d sets remaining... ".format(sets.size))
-    val (res, more) = doMerge(sets, fpMap)
-    if (!more || res.size <= 1)
-      res
-    else
-      doMergeAll(res, fpMap)
-  }
-
-  def doMerge(sets: List[TileSet], fpMap: Map[MapTile, String]): (List[TileSet], Boolean) = {
-    for {
-      set1 <- sets
-      (coord1, tile1) <- set1.tiles
-      fp1 <- fpMap.get(tile1)
-      set2 <- sets if set2 != set1
-      (coord2, tile2) <- set2.tiles
-      fp2 <- fpMap.get(tile2)
-      if fp1 == fp2
-    } {
-      val delta = coord2 - coord1
-      println("Found match: %s <> %s D=(%d,%d)".format(tile1.name, tile2.name, delta.x, delta.y))
-      val newSet = TileSet(set1.tiles ++ set2.tiles.map({ case (c, m) => c - delta -> m }))
-      return (sets.filterNot(x => x == set1 || x == set2) :+ newSet, true)
-    }
-    println("No more matches")
-    (sets, false)
-  }
-
-  var mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
-
-  def findInputSets(base: File): List[TileSet] = {
-    val res = for (dir <- base.listFiles() if dir.canRead && dir.isDirectory) yield {
-      val tiles = for {
-        file <- dir.listFiles() if file.canRead && !file.isDirectory
-        name <- mapTileName.findFirstMatchIn(file.getName)
-      } yield Coord(name.group(1).toInt, name.group(2).toInt) -> MapTile(file, "%s/%s".format(dir.getName, file.getName))
-      println(" * Found directory %s with %d images".format(dir.getName, tiles.length))
-      TileSet(tiles.toMap)
-    }
-    res.filterNot(_.tiles.isEmpty).toList
   }
 }
