@@ -15,7 +15,7 @@ jar {
     manifest {
         attributes(
                 'Main-Class': 'net.bdew.hafen.combiner.Combiner',
-                'Class-Path': 'scala-library-2.11.7.jar'
+                'Class-Path': 'lib/scala-library-2.11.7.jar'
         )
     }
 }
