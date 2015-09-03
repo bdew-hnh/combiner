@@ -53,11 +53,11 @@ object Combiner {
     if (args.merge.isDefined) {
       sys.error("Not implemented")
     } else {
-      val merged = inputSet.mergeTiles
+      val merged = inputSet.mergeTiles()
 
       for ((t, i) <- merged.zipWithIndex) {
         println(" + Writing set #%d with %d images to combined_%d.png".format(i, t.tiles.size, i))
-        t.saveCombined(new File(inputs.head, "combined_%d.png".format(i)))
+        t.saveCombined(new File(inputs.head, "combined_%d.png".format(i)), args.grid)
       }
     }
   }

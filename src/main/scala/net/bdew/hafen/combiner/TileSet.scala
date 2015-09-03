@@ -36,12 +36,18 @@ case class TileSet(tiles: Map[Coord, MapTile]) {
   lazy val maxY = tiles.keys.map(_.y).max
   lazy val width = maxX - minX + 1
   lazy val height = maxY - minY + 1
+  lazy val origin = Coord(minX, minY)
 
-  def saveCombined(output: File): Unit = {
+  def saveCombined(output: File, grid: Boolean): Unit = {
     val result = new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
     val g = result.getGraphics
-    for ((Coord(x, y), tile) <- tiles) {
-      g.drawImage(tile.getImage, (x - minX) * Combiner.TILE_SIZE, (y - minY) * Combiner.TILE_SIZE, null)
+    for ((c, tile) <- tiles) {
+      val ct = c - origin
+      g.drawImage(tile.getImage, ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, null)
+      if (grid && (ct.x > 0 || ct.y > 0)) {
+        g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, (ct.x + 1) * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE)
+        g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, ct.x * Combiner.TILE_SIZE, (ct.y + 1) * Combiner.TILE_SIZE)
+      }
     }
     ImageIO.write(result, "png", output)
   }
