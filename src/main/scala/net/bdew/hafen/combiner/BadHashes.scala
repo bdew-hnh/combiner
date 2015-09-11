@@ -25,6 +25,7 @@
 
 package net.bdew.hafen.combiner
 
+//noinspection SpellCheckingInspection
 object BadHashes {
   // Set of known bad hashes, those were generated in older versions when a map tile contains
   // only one kind of terrain. Tiles like that often happen in lakes, mountains and caves

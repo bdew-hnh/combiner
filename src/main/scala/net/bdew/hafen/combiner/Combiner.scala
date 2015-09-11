@@ -25,13 +25,18 @@
 
 package net.bdew.hafen.combiner
 
-import java.io.{File, FileWriter}
-import java.nio.file.Files
+import java.io.File
+import java.util.concurrent.Executors
+
+import scala.concurrent.{ExecutionContext, Future}
 
 object Combiner {
   final val TILE_SIZE = 100
+  implicit val EC = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
 
   def main(params: Array[String]): Unit = {
+    val timer = Timer("Processing")
+
     val args = Args.parse(params)
     val inputs =
       if (args.inputs.isEmpty)
@@ -39,19 +44,21 @@ object Combiner {
       else
         args.inputs.map(new File(_))
 
-    val inputSets = inputs map InputSet.load
+    timer.mark("Start")
 
-    val inputSet =
-      if (inputSets.isEmpty) {
-        println("No valid inputs")
-        sys.exit()
-      } else if (inputSets.size > 1) {
-        inputSets.tail.foldRight(inputSets.head)(_.merge(_))
-      } else {
-        inputSets.head
-      }
+    val inputSet = InputSet.loadAsync(inputs)
+
+    timer.mark("Load")
+
+    if (inputSet.tileSets.isEmpty) {
+      println("No valid inputs")
+      sys.exit()
+    }
 
     val merged = inputSet.mergeTiles()
+
+    timer.mark("Merge")
+
     if (args.merge.isDefined) {
       val outDir = new File(args.merge.get)
       if (outDir.exists()) {
@@ -59,37 +66,34 @@ object Combiner {
         sys.exit(0)
       }
       outDir.mkdir()
-      writeTiles(outDir, merged, inputSet.tileFpMap)
+      writeTiles(outDir, merged)
+      timer.mark("Write Sets")
       writeMergedImages(outDir, merged, args.grid)
+      timer.mark("Write Images")
     } else {
       writeMergedImages(inputs.head, merged, args.grid)
+      timer.mark("Write Images")
     }
+
+    if (args.timer)
+      timer.print()
 
     println("*** All done! ***")
   }
 
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean): Unit = {
-    for ((t, i) <- merged.zipWithIndex) {
-      val file = new File(out, "combined_%d.png".format(i))
-      println(" + Writing set #%d with %d tiles to %s".format(i, t.tiles.size, file.getAbsolutePath))
-      t.saveCombined(file, grid)
-    }
+    Async("Saving Images") {
+      for ((t, i) <- merged.zipWithIndex) yield Future {
+        t.saveCombined(new File(out, "combined_%d.png".format(i)), grid)
+      }
+    } waitUntilDone()
   }
 
-  def writeTiles(out: File, merged: List[TileSet], fpMap: Map[MapTile, String]): Unit = {
-    val fpWriter = new FileWriter(new File(out, "fingerprints.txt"))
-    for ((tileSet, i) <- merged.zipWithIndex) {
-      val dir = new File(out, "combined_%d".format(i))
-      dir.mkdirs()
-      for ((coord, tile) <- tileSet.tiles) {
-        val relocated = coord - tileSet.origin
-        val out = new File(dir, "tile_%d_%d.png".format(relocated.x, relocated.y))
-        println(" + Copy %s -> %s".format(tile.file.getAbsolutePath, out.getAbsolutePath))
-        Files.copy(tile.file.toPath, out.toPath)
-        if (fpMap.contains(tile))
-          fpWriter.write("combined_%d/tile_%d_%d.png:%s\n".format(i, relocated.x, relocated.y, fpMap(tile)))
-      }
-    }
-    fpWriter.close()
+  def writeTiles(out: File, merged: List[TileSet]): Unit = {
+    val q = Async("Saving Merged") {
+      (for ((tileSet, i) <- merged.zipWithIndex) yield {
+        tileSet.saveTilesAsync(new File(out, "combined_%d".format(i)))
+      }).flatten
+    } waitUntilDone()
   }
 }

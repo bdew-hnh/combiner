@@ -25,31 +25,24 @@
 
 package net.bdew.hafen.combiner
 
-case class Args(inputs: List[String], merge: Option[String], grid: Boolean, timer: Boolean)
+case class Timer(what: String) {
 
-object Args {
-  def parse(args: Array[String]) = realParse(args.toList)
-  def realParse(args: List[String]): Args = args match {
-    case "--merge" :: merge :: tail =>
-      val rest = realParse(tail)
-      if (rest.merge.isDefined) {
-        println("--merge can't be used multiple times")
-        sys.exit()
-      }
-      rest.copy(merge = Some(merge))
+  case class Mark(name: String, time: Long)
 
-    case "--grid" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(grid = true)
+  val start = System.currentTimeMillis()
+  var marks = List.empty[Mark]
 
-    case "--time" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(timer = true)
+  def mark(name: String): Unit = {
+    marks :+= Mark(name, System.currentTimeMillis())
+  }
 
-    case str :: tail =>
-      val rest = realParse(tail)
-      rest.copy(inputs = str +: rest.inputs)
-
-    case nil => Args(List.empty, None, grid = false, timer = false)
+  def print(): Unit = {
+    println("%s Timing:".format(what))
+    var last = start
+    for (mark <- marks) {
+      println(" * %s took %.3f sec".format(mark.name, (mark.time - last) / 1000F))
+      last = mark.time
+    }
+    println("Total: %.3f sec".format((last - start) / 1000F))
   }
 }

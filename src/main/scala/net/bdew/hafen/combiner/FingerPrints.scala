@@ -27,25 +27,14 @@ package net.bdew.hafen.combiner
 
 import java.io._
 
-class FingerPrintDatabase(val hashMap: Map[String, String]) {
-  def merge(that: FingerPrintDatabase) = new FingerPrintDatabase(hashMap ++ that.hashMap)
-  def save(file: File) = {
-    println(" * Saving %d fingerprints to %s ...".format(hashMap.size, file.getAbsolutePath))
-    val writer = new BufferedWriter(new FileWriter(file))
-    try {
-      for ((fileName, hash) <- hashMap) {
-        writer.write("%s:%s\n".format(fileName, hash))
-      }
-    } finally {
-      writer.close()
-    }
-  }
+class FingerPrints(val hashMap: Map[String, String]) {
+  def mkLookup(dirName: String, local: FingerPrints) =
+    (name: String) => local.hashMap.get(name) orElse this.hashMap.get("%s/%s".format(dirName, name))
 }
 
-object FingerPrintDatabase {
+object FingerPrints {
   def from(dataFile: File) = {
     val data = if (dataFile.canRead && dataFile.isFile) {
-      println(" * Loading fingerprints from %s ...".format(dataFile))
       val reader = new BufferedReader(new FileReader(dataFile))
       Iterator.continually(reader.readLine())
         .takeWhile(_ != null)
@@ -55,12 +44,9 @@ object FingerPrintDatabase {
         .map(x => x(0) -> x(1))
         .toMap
     } else {
-      println(" ! Fingerprint database does not exist or is not readable, skipping")
       Map.empty[String, String]
     }
-    if (data.nonEmpty)
-      println(" * Loaded %d fingerprints".format(data.size))
-    new FingerPrintDatabase(data)
+    new FingerPrints(data)
   }
 }
 

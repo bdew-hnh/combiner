@@ -25,31 +25,33 @@
 
 package net.bdew.hafen.combiner
 
-case class Args(inputs: List[String], merge: Option[String], grid: Boolean, timer: Boolean)
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, ExecutionContext, Future}
 
-object Args {
-  def parse(args: Array[String]) = realParse(args.toList)
-  def realParse(args: List[String]): Args = args match {
-    case "--merge" :: merge :: tail =>
-      val rest = realParse(tail)
-      if (rest.merge.isDefined) {
-        println("--merge can't be used multiple times")
-        sys.exit()
+class Async[T](name: String, futures: List[Future[T]])(implicit EC: ExecutionContext) {
+  lazy val length = futures.length
+  def completed = futures.count(_.isCompleted)
+
+  def waitUntilDone() = {
+    var last = completed
+    println("* %s... %d/%d".format(name, last, length))
+    while (completed < length) {
+      val now = completed
+      if (now > last) {
+        println("* %s... %d/%d".format(name, completed, length))
+        last = now
       }
-      rest.copy(merge = Some(merge))
+      Thread.sleep(100)
+    }
+    println("* %s... Done!".format(name))
+    result
+  }
 
-    case "--grid" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(grid = true)
+  def result = Await.result(Future.sequence(futures), Duration.Inf)
+}
 
-    case "--time" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(timer = true)
-
-    case str :: tail =>
-      val rest = realParse(tail)
-      rest.copy(inputs = str +: rest.inputs)
-
-    case nil => Args(List.empty, None, grid = false, timer = false)
+object Async {
+  def apply[T](name: String)(f: => List[Future[T]])(implicit EC: ExecutionContext) = {
+    new Async(name, f)
   }
 }

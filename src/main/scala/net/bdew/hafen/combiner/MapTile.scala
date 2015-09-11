@@ -28,8 +28,9 @@ package net.bdew.hafen.combiner
 import java.io.File
 import javax.imageio.ImageIO
 
-case class MapTile(file: File, name: String) {
+case class MapTile(file: File) {
   def getImage = ImageIO.read(file)
+  def name = file.getAbsolutePath
 }
 
 

@@ -26,10 +26,13 @@
 package net.bdew.hafen.combiner
 
 import java.awt.image.BufferedImage
-import java.io.File
+import java.io.{File, FileWriter}
+import java.nio.file.Files
 import javax.imageio.ImageIO
 
-case class TileSet(tiles: Map[Coord, MapTile]) {
+import scala.concurrent.{ExecutionContext, Future}
+
+case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) {
   lazy val minX = tiles.keys.map(_.x).min
   lazy val maxX = tiles.keys.map(_.x).max
   lazy val minY = tiles.keys.map(_.y).min
@@ -37,6 +40,8 @@ case class TileSet(tiles: Map[Coord, MapTile]) {
   lazy val width = maxX - minX + 1
   lazy val height = maxY - minY + 1
   lazy val origin = Coord(minX, minY)
+
+  lazy val reverse = tiles.map(_.swap)
 
   def saveCombined(output: File, grid: Boolean): Unit = {
     val result = new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
@@ -50,5 +55,48 @@ case class TileSet(tiles: Map[Coord, MapTile]) {
       }
     }
     ImageIO.write(result, "png", output)
+  }
+
+  def saveTilesAsync(dir: File)(implicit ec: ExecutionContext) = {
+    dir.mkdirs()
+    val reverseFp = fingerPrints.map(_.swap)
+    val fpWriter = new FileWriter(new File(dir, "fingerprints.txt"))
+    try {
+      for ((coord, tile) <- tiles) yield {
+        val relocated = coord - origin
+        if (reverseFp.contains(tile))
+          fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(tile)))
+        Future(Files.copy(tile.file.toPath, new File(dir, "tile_%d_%d.png".format(relocated.x, relocated.y)).toPath))
+      }
+    } finally {
+      fpWriter.close()
+    }
+  }
+
+  def merge(that: TileSet, delta: Coord) = TileSet(this.tiles ++ that.tiles.map({ case (c, m) => c - delta -> m }), this.fingerPrints ++ that.fingerPrints)
+}
+
+object TileSet {
+  private
+
+  final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
+
+  def load(dir: File, globFp: FingerPrints): Option[TileSet] = {
+    val tiles =
+      for {
+        file <- dir.listFiles().toList if file.canRead && !file.isDirectory
+        name <- mapTileName.findFirstMatchIn(file.getName)
+      } yield Coord(name.group(1).toInt, name.group(2).toInt) -> MapTile(file)
+    if (tiles.nonEmpty) {
+      val lookup = globFp.mkLookup(dir.getName, FingerPrints.from(new File(dir, "fingerprints.txt")))
+      val fps =
+        for {
+          (coord, tile) <- tiles
+          fp <- lookup(tile.file.getName)
+        } yield fp -> tile
+      Some(TileSet(tiles.toMap, fps.toMap))
+    } else {
+      None
+    }
   }
 }
