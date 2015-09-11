@@ -32,7 +32,8 @@ import scala.concurrent.{ExecutionContext, Future}
 
 object Combiner {
   final val TILE_SIZE = 100
-  implicit val EC = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(5))
+  val pool = Executors.newFixedThreadPool(5)
+  implicit val EC = ExecutionContext.fromExecutor(pool)
 
   def main(params: Array[String]): Unit = {
     val timer = Timer("Processing")
@@ -77,6 +78,8 @@ object Combiner {
 
     if (args.timer)
       timer.print()
+
+    pool.shutdown()
 
     println("*** All done! ***")
   }
