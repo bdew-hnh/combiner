@@ -73,13 +73,19 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
     }
   }
 
-  def merge(that: TileSet, delta: Coord) = TileSet(this.tiles ++ that.tiles.map({ case (c, m) => c - delta -> m }), this.fingerPrints ++ that.fingerPrints)
+  def merge(that: TileSet, delta: Coord) = {
+    var tiles = this.tiles
+    for ((c,t) <- that.tiles) {
+      val cmod = c - delta
+      if (!tiles.isDefinedAt(cmod) || t.lastModified > tiles(cmod).lastModified)
+        tiles += cmod -> t
+    }
+    TileSet(tiles, this.fingerPrints ++ that.fingerPrints)
+  }
 }
 
 object TileSet {
-  private
-
-  final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
+  private final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
 
   def load(dir: File, globFp: FingerPrints): Option[TileSet] = {
     val tiles =

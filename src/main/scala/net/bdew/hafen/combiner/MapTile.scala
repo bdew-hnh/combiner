@@ -30,7 +30,8 @@ import javax.imageio.ImageIO
 
 case class MapTile(file: File) {
   def getImage = ImageIO.read(file)
-  def name = file.getAbsolutePath
+  lazy val name = file.getAbsolutePath
+  lazy val lastModified = file.lastModified()
 }
 
 
