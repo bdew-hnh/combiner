@@ -32,9 +32,7 @@ import javax.imageio.ImageIO
 
 import scala.concurrent.{ExecutionContext, Future}
 
-trait TileSet {
-  val tiles: Map[Coord, MapTile]
-  val fingerPrints: Map[String, MapTile]
+case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) {
   lazy val minX = tiles.keys.map(_.x).min
   lazy val maxX = tiles.keys.map(_.x).max
   lazy val minY = tiles.keys.map(_.y).min
@@ -45,10 +43,15 @@ trait TileSet {
 
   lazy val reverse = tiles.map(_.swap)
 
-  def name: String
 
   def saveCombined(output: File, grid: Boolean, coords: Boolean): Unit = {
-    val result = new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
+    val result = try {
+      new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
+    } catch {
+      case e: OutOfMemoryError =>
+        println("Unable to draw map %s (%dx%d) - not enough memory".format(output.getName, width, height))
+        return
+    }
     val g = result.getGraphics
     for ((c, tile) <- tiles) {
       val ct = c - origin
@@ -89,15 +92,9 @@ trait TileSet {
       if (!tiles.isDefinedAt(cmod) || t.lastModified > tiles(cmod).lastModified)
         tiles += cmod -> t
     }
-    MergedTileSet(tiles, this.fingerPrints ++ that.fingerPrints)
+    TileSet(tiles, this.fingerPrints ++ that.fingerPrints)
   }
 }
-
-case class MergedTileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) extends TileSet {
-  lazy val name = "combined_" + TileSet.combinedCounter.next()
-}
-
-case class OriginalTileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile], name: String) extends TileSet
 
 object TileSet {
   private final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
@@ -117,7 +114,7 @@ object TileSet {
           (coord, tile) <- tiles
           fp <- lookup(tile.file.getName)
         } yield fp -> tile
-      Some(OriginalTileSet(tiles.toMap, fps.toMap, dir.getName))
+      Some(TileSet(tiles.toMap, fps.toMap))
     } else {
       None
     }

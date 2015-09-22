@@ -81,4 +81,13 @@ object InputSet {
     inputs.waitUntilDone()
     new InputSet(inputs.result.flatten)
   }
+
+  def loadSingle(path: File) = {
+    if (!path.isDirectory || !path.canRead) {
+      println("!!! Unable to read source: %s".format(path.getAbsolutePath))
+      sys.exit(-1)
+    }
+    val globFp = FingerPrints.from(new File(path, "fingerprints.txt"))
+    path.listFiles().toList filter (x => x.canRead && x.isDirectory) flatMap (dir => TileSet.load(dir, globFp).map(x => dir -> x))
+  }
 }

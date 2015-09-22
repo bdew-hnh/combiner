@@ -48,38 +48,54 @@ object Combiner {
 
       timer.mark("Start")
 
-      val inputSet = InputSet.loadAsync(inputs)
+      if (args.autoMerge) {
+        val inputSet = InputSet.loadAsync(inputs)
 
-      timer.mark("Load")
+        timer.mark("Load")
 
-      if (inputSet.tileSets.isEmpty) {
-        println("No valid inputs")
-        sys.exit()
-      }
-
-      val merged =
-        if (args.autoMerge)
-          inputSet.mergeTiles()
-        else
-          inputSet.tileSets
-
-      timer.mark("Merge")
-
-      if (args.merge.isDefined) {
-        val outDir = new File(args.merge.get)
-        if (outDir.exists()) {
-          println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
-          sys.exit(0)
+        if (inputSet.tileSets.isEmpty) {
+          println("No valid inputs")
+          sys.exit()
         }
-        outDir.mkdir()
-        writeTiles(outDir, merged)
-        timer.mark("Write Sets")
-        if (args.imgOut) {
-          writeMergedImages(outDir, merged, args.grid, args.coords)
+
+        val merged = inputSet.mergeTiles()
+
+        timer.mark("Merge")
+
+        if (args.merge.isDefined) {
+          val outDir = new File(args.merge.get)
+          if (outDir.exists()) {
+            println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
+            sys.exit(0)
+          }
+          outDir.mkdir()
+          writeTiles(outDir, merged)
+          timer.mark("Write Sets")
+          if (args.imgOut) {
+            writeMergedImages(outDir, merged, args.grid, args.coords)
+            timer.mark("Write Images")
+          }
+        } else {
+          writeMergedImages(inputs.head, merged, args.grid, args.coords)
           timer.mark("Write Images")
         }
       } else {
-        writeMergedImages(inputs.head, merged, args.grid, args.coords)
+        if (args.inputs.length != 1) {
+          println("--nomerge must be used with a single input")
+          sys.exit(-1)
+        }
+
+        val input = new File(args.inputs.head)
+        val tileSets = InputSet.loadSingle(input)
+
+        timer.mark("Load")
+
+        Async("Saving Images") {
+          for ((n, t) <- tileSets) yield Future {
+            t.saveCombined(new File(input, n.getName + ".png"), args.grid, args.coords)
+          }
+        } waitUntilDone()
+
         timer.mark("Write Images")
       }
 
@@ -92,27 +108,18 @@ object Combiner {
     println("*** All done! ***")
   }
 
-  def getUniqueName(base: File, name: String, ext: String) = {
-    var n = new File(base, name+ext)
-    var i = Iterator.from(1)
-    while (n.exists()) {
-      n = new File(base, "%s (%d)%s".format(name, i.next(), ext))
-    }
-    n
-  }
-
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean, coords: Boolean): Unit = {
     Async("Saving Images") {
       for ((t, i) <- merged.zipWithIndex) yield Future {
-        t.saveCombined(getUniqueName(out, t.name, ".png"), grid, coords)
+        t.saveCombined(new File(out, "combined_%d.png".format(i)), grid, coords)
       }
     } waitUntilDone()
   }
 
   def writeTiles(out: File, merged: List[TileSet]): Unit = {
     val q = Async("Saving Merged") {
-      (for (t <- merged) yield {
-        t.saveTilesAsync(getUniqueName(out, t.name, ""))
+      (for ((t, i) <- merged.zipWithIndex) yield {
+        t.saveTilesAsync(new File(out, "combined_" + i))
       }).flatten
     } waitUntilDone()
   }
