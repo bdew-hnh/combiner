@@ -33,6 +33,8 @@ class FingerPrints(val hashMap: Map[String, String]) {
 }
 
 object FingerPrints {
+  val nil = new FingerPrints(Map.empty)
+
   def from(dataFile: File) = {
     val data = if (dataFile.canRead && dataFile.isFile) {
       val reader = new BufferedReader(new FileReader(dataFile))

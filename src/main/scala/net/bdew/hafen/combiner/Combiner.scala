@@ -39,73 +39,134 @@ object Combiner {
     try {
       val timer = Timer("Processing")
 
-      val args = Args.parse(params)
-      val inputs =
-        if (args.inputs.isEmpty)
-          List(new File("map"))
-        else
-          args.inputs.map(new File(_))
-
-      timer.mark("Start")
-
-      if (args.autoMerge) {
-        val inputSet = InputSet.loadAsync(inputs)
-
-        timer.mark("Load")
-
-        if (inputSet.tileSets.isEmpty) {
-          println("No valid inputs")
-          sys.exit()
-        }
-
-        val merged = inputSet.mergeTiles()
-
-        timer.mark("Merge")
-
-        if (args.merge.isDefined) {
-          val outDir = new File(args.merge.get)
-          if (outDir.exists()) {
-            println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
-            sys.exit(0)
-          }
-          outDir.mkdir()
-          writeTiles(outDir, merged)
-          timer.mark("Write Sets")
-          if (args.imgOut) {
-            writeMergedImages(outDir, merged, args.grid, args.coords)
-            timer.mark("Write Images")
-          }
-        } else {
-          writeMergedImages(inputs.head, merged, args.grid, args.coords)
-          timer.mark("Write Images")
-        }
-      } else {
-        if (args.inputs.length != 1) {
-          println("--nomerge must be used with a single input")
+      if (params.headOption.contains("--combine")) {
+        if (params.length != 8) {
+          println("Usage: --combine <indir1> <x1> <y1> <indir2> <x2> <y2> <outdir>")
           sys.exit(-1)
         }
+        timer.mark("Start")
+        doCombine(params(1), Coord(params(2).toInt, params(3).toInt), params(4), Coord(params(5).toInt, params(6).toInt), params(7), timer)
+      } else {
 
-        val input = new File(args.inputs.head)
-        val tileSets = InputSet.loadSingle(input)
+        val args = Args.parse(params)
 
-        timer.mark("Load")
+        timer.mark("Start")
 
-        Async("Saving Images") {
-          for ((n, t) <- tileSets) yield Future {
-            t.saveCombined(new File(input, n.getName + ".png"), args.grid, args.coords)
-          }
-        } waitUntilDone()
+        val inputs =
+          if (args.inputs.isEmpty)
+            List(new File("map"))
+          else
+            args.inputs.map(new File(_))
 
-        timer.mark("Write Images")
+        if (args.autoMerge) {
+          doAutoMerge(inputs, timer, args)
+        } else {
+          doImages(inputs, timer, args)
+        }
+
+        if (args.timer)
+          timer.print()
       }
-
-      if (args.timer)
-        timer.print()
 
     } finally {
       pool.shutdown()
     }
     println("*** All done! ***")
+  }
+
+  def doAutoMerge(inputs: List[File], timer: Timer, args: Args): Unit = {
+    val inputSet = InputSet.loadAsync(inputs)
+
+    timer.mark("Load")
+
+    if (inputSet.tileSets.isEmpty) {
+      println("No valid inputs")
+      sys.exit()
+    }
+
+    val merged = inputSet.mergeTiles()
+
+    timer.mark("Merge")
+
+    if (args.merge.isDefined) {
+      val outDir = new File(args.merge.get)
+      if (outDir.exists()) {
+        println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
+        sys.exit(0)
+      }
+      outDir.mkdir()
+      writeTiles(outDir, merged)
+      timer.mark("Write Sets")
+      if (args.imgOut) {
+        writeMergedImages(outDir, merged, args.grid, args.coords)
+        timer.mark("Write Images")
+      }
+    } else {
+      writeMergedImages(inputs.head, merged, args.grid, args.coords)
+      timer.mark("Write Images")
+    }
+  }
+
+  def doImages(inputs: List[File], timer: Timer, args: Args): Unit = {
+    if (args.inputs.length != 1) {
+      println("--nomerge must be used with a single input")
+      sys.exit(-1)
+    }
+
+    val input = new File(args.inputs.head)
+    val tileSets = InputSet.loadSingle(input)
+
+    timer.mark("Load")
+
+    Async("Saving Images") {
+      for ((n, t) <- tileSets) yield Future {
+        t.saveCombined(new File(input, n.getName + ".png"), args.grid, args.coords)
+      }
+    } waitUntilDone()
+
+    timer.mark("Write Images")
+  }
+
+  def doCombine(in1: String, c1: Coord, in2: String, c2: Coord, out: String, timer: Timer): Unit = {
+    val in1d = new File(in1)
+    val in2d = new File(in2)
+    val outd = new File(out)
+    val delta = c2 - c1
+    println("* Input 1: " + in1d.getAbsolutePath)
+    println("* Input 2: " + in2d.getAbsolutePath)
+    println("* Output: " + outd.getAbsolutePath)
+    println("* Delta: " + delta)
+
+    if (!in1d.exists() || !in1d.canRead || !in1d.isDirectory) {
+      println("! Input 1 does not exist or is not readable")
+      sys.exit(-1)
+    } else if (!in2d.exists() || !in2d.canRead || !in2d.isDirectory) {
+      println("! Input 2 does not exist or is not readable")
+      sys.exit(-1)
+    } else if (outd.exists()) {
+      println("! Output path must not exist")
+      sys.exit(-1)
+    }
+
+    val t1 = TileSet.load(in1d, FingerPrints.nil) getOrElse {
+      println("! Input 1 is empty")
+      sys.exit(-1)
+    }
+
+    val t2 = TileSet.load(in2d, FingerPrints.nil) getOrElse {
+      println("! Input 2 is empty")
+      sys.exit(-1)
+    }
+
+    timer.mark("Load")
+
+    val merged = t1.merge(t2, delta)
+
+    Async("Saving Combined") {
+      merged.saveTilesAsync(outd).toList
+    } waitUntilDone()
+
+    timer.mark("Copy Tiles")
   }
 
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean, coords: Boolean): Unit = {
