@@ -36,57 +36,59 @@ object Combiner {
   implicit val EC = ExecutionContext.fromExecutor(pool)
 
   def main(params: Array[String]): Unit = {
-    val timer = Timer("Processing")
+    try {
+      val timer = Timer("Processing")
 
-    val args = Args.parse(params)
-    val inputs =
-      if (args.inputs.isEmpty)
-        List(new File("map"))
-      else
-        args.inputs.map(new File(_))
+      val args = Args.parse(params)
+      val inputs =
+        if (args.inputs.isEmpty)
+          List(new File("map"))
+        else
+          args.inputs.map(new File(_))
 
-    timer.mark("Start")
+      timer.mark("Start")
 
-    val inputSet = InputSet.loadAsync(inputs)
+      val inputSet = InputSet.loadAsync(inputs)
 
-    timer.mark("Load")
+      timer.mark("Load")
 
-    if (inputSet.tileSets.isEmpty) {
-      println("No valid inputs")
-      sys.exit()
-    }
-
-    val merged =
-      if (args.autoMerge)
-        inputSet.mergeTiles()
-      else
-        inputSet.tileSets
-
-    timer.mark("Merge")
-
-    if (args.merge.isDefined) {
-      val outDir = new File(args.merge.get)
-      if (outDir.exists()) {
-        println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
-        sys.exit(0)
+      if (inputSet.tileSets.isEmpty) {
+        println("No valid inputs")
+        sys.exit()
       }
-      outDir.mkdir()
-      writeTiles(outDir, merged)
-      timer.mark("Write Sets")
-      if (args.imgOut) {
-        writeMergedImages(outDir, merged, args.grid, args.coords)
+
+      val merged =
+        if (args.autoMerge)
+          inputSet.mergeTiles()
+        else
+          inputSet.tileSets
+
+      timer.mark("Merge")
+
+      if (args.merge.isDefined) {
+        val outDir = new File(args.merge.get)
+        if (outDir.exists()) {
+          println("Error: output directory %s already exists, aborting!".format(outDir.getAbsolutePath))
+          sys.exit(0)
+        }
+        outDir.mkdir()
+        writeTiles(outDir, merged)
+        timer.mark("Write Sets")
+        if (args.imgOut) {
+          writeMergedImages(outDir, merged, args.grid, args.coords)
+          timer.mark("Write Images")
+        }
+      } else {
+        writeMergedImages(inputs.head, merged, args.grid, args.coords)
         timer.mark("Write Images")
       }
-    } else {
-      writeMergedImages(inputs.head, merged, args.grid, args.coords)
-      timer.mark("Write Images")
+
+      if (args.timer)
+        timer.print()
+
+    } finally {
+      pool.shutdown()
     }
-
-    if (args.timer)
-      timer.print()
-
-    pool.shutdown()
-
     println("*** All done! ***")
   }
 

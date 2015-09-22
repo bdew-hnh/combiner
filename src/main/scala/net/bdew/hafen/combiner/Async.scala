@@ -27,10 +27,15 @@ package net.bdew.hafen.combiner
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Success, Failure}
 
 class Async[T](name: String, futures: List[Future[T]])(implicit EC: ExecutionContext) {
   lazy val length = futures.length
-  def completed = futures.count(_.isCompleted)
+
+  def completed = futures flatMap (_.value) count {
+    case s:Success[T] => true
+    case f:Failure[T] => throw new RuntimeException("Error while "+name, f.exception)
+  }
 
   def waitUntilDone() = {
     var last = completed
