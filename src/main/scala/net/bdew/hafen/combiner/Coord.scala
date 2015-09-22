@@ -28,4 +28,11 @@ package net.bdew.hafen.combiner
 case class Coord(x: Int, y: Int) {
   def +(that: Coord) = Coord(x + that.x, y + that.y)
   def -(that: Coord) = Coord(x - that.x, y - that.y)
+
+  def dsq(that: Coord) = {
+    val d = this - that
+    d.x.toDouble * d.x + d.y.toDouble * d.y
+  }
+
+  def distance(that: Coord) = Math.sqrt(dsq(that))
 }

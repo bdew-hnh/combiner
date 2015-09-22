@@ -43,7 +43,6 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
 
   lazy val reverse = tiles.map(_.swap)
 
-
   def saveCombined(output: File, grid: Boolean, coords: Boolean): Unit = {
     val result = try {
       new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
@@ -107,6 +106,18 @@ object TileSet {
         file <- dir.listFiles().toList if file.canRead && !file.isDirectory
         name <- mapTileName.findFirstMatchIn(file.getName)
       } yield Coord(name.group(1).toInt, name.group(2).toInt) -> MapTile(file)
+
+    if (tiles.size > 1) {
+      val coords = tiles.map(_._1)
+      for (c1 <- coords) {
+        val md = coords.filterNot(_ == c1).map(_.distance(c1)).min
+        if (md > 5) {
+          println("Tile %s in %s is %.0f tiles away from other tiles! This is probably bad data.".format(c1, dir.getAbsolutePath, md))
+          sys.exit(-1)
+        }
+      }
+    }
+
     if (tiles.nonEmpty) {
       val lookup = globFp.mkLookup(dir.getName, FingerPrints.from(new File(dir, "fingerprints.txt")))
       val fps =
