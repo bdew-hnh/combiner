@@ -7,3 +7,5 @@
 * **--noimg** - Will not generate stitched images, can only be used with --merge
 * **--time** - Shows timing data
 * All other parameters are treated as input directories
+
+**Uses [ObjectPlanet PngEncoder](http://objectplanet.com/pngencoder/) for fast PNG output**

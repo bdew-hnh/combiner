@@ -9,13 +9,25 @@ repositories {
 
 dependencies {
     compile "org.scala-lang:scala-library:2.11.7"
+    compile files("libs/com.objectplanet.image.PngEncoder.jar")
 }
 
 jar {
+    archiveName "combiner.jar"
     manifest {
         attributes(
                 'Main-Class': 'net.bdew.hafen.combiner.Combiner',
-                'Class-Path': 'lib/scala-library-2.11.7.jar'
+                'Class-Path': 'lib/scala-library-2.11.7.jar lib/com.objectplanet.image.PngEncoder.jar'
         )
     }
+}
+
+task dist(type: Zip) {
+    from jar
+    from file("etc").listFiles()
+    into("lib", {
+        from configurations.compile.files
+    })
+
+    archiveName "${project.name}-${project.version}.zip"
 }

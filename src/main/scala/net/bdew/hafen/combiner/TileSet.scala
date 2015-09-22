@@ -26,9 +26,10 @@
 package net.bdew.hafen.combiner
 
 import java.awt.image.BufferedImage
-import java.io.{File, FileWriter}
+import java.io.{File, FileOutputStream, FileWriter}
 import java.nio.file.Files
-import javax.imageio.ImageIO
+
+import com.objectplanet.image.PngEncoder
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -65,7 +66,12 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
           g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, ct.x * Combiner.TILE_SIZE, (ct.y + 1) * Combiner.TILE_SIZE)
       }
     }
-    ImageIO.write(result, "png", output)
+    val os = new FileOutputStream(output)
+    try {
+      new PngEncoder(PngEncoder.COLOR_TRUECOLOR_ALPHA, PngEncoder.DEFAULT_COMPRESSION).encode(result, os)
+    } finally {
+      os.close()
+    }
   }
 
   def saveTilesAsync(dir: File)(implicit ec: ExecutionContext) = {
