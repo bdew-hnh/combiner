@@ -90,10 +90,19 @@ object Combiner {
     println("*** All done! ***")
   }
 
+  def getUniqueName(base: File, name: String, ext: String) = {
+    var n = new File(base, name+ext)
+    var i = Iterator.from(1)
+    while (n.exists()) {
+      n = new File(base, "%s (%d)%s".format(name, i.next(), ext))
+    }
+    n
+  }
+
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean, coords: Boolean): Unit = {
     Async("Saving Images") {
       for ((t, i) <- merged.zipWithIndex) yield Future {
-        t.saveCombined(new File(out, t.name + ".png"), grid, coords)
+        t.saveCombined(getUniqueName(out, t.name, ".png"), grid, coords)
       }
     } waitUntilDone()
   }
@@ -101,7 +110,7 @@ object Combiner {
   def writeTiles(out: File, merged: List[TileSet]): Unit = {
     val q = Async("Saving Merged") {
       (for (t <- merged) yield {
-        t.saveTilesAsync(new File(out, t.name))
+        t.saveTilesAsync(getUniqueName(out, t.name, ""))
       }).flatten
     } waitUntilDone()
   }
