@@ -33,7 +33,7 @@ import com.objectplanet.image.PngEncoder
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) {
+case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord]) {
   lazy val minX = tiles.keys.map(_.x).min
   lazy val maxX = tiles.keys.map(_.x).max
   lazy val minY = tiles.keys.map(_.y).min
@@ -81,8 +81,8 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
     try {
       for ((coord, tile) <- tiles) yield {
         val relocated = coord - origin
-        if (reverseFp.contains(tile))
-          fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(tile)))
+        if (reverseFp.contains(coord))
+          fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(coord)))
         Future(Files.copy(tile.file.toPath, new File(dir, "tile_%d_%d.png".format(relocated.x, relocated.y)).toPath))
       }
     } finally {
@@ -97,7 +97,7 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
       if (!tiles.isDefinedAt(cmod) || t.lastModified > tiles(cmod).lastModified)
         tiles += cmod -> t
     }
-    TileSet(tiles, this.fingerPrints ++ that.fingerPrints)
+    TileSet(tiles, this.fingerPrints ++ that.fingerPrints.map(x => x._1 -> (x._2 - delta)))
   }
 }
 
@@ -130,7 +130,7 @@ object TileSet {
         for {
           (coord, tile) <- tiles
           fp <- lookup(tile.file.getName)
-        } yield fp -> tile
+        } yield fp -> coord
       Some(TileSet(tiles.toMap, fps.toMap))
     } else {
       None

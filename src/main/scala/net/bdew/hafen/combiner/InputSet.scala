@@ -52,10 +52,8 @@ class InputSet(val tileSets: List[TileSet]) {
     for {
       set1 <- sets
       set2 <- sets if set2 != set1
-      (fp1, tile1) <- set1.fingerPrints
-      tile2 <- set2.fingerPrints.get(fp1)
-      coord1 <- set1.reverse.get(tile1)
-      coord2 <- set2.reverse.get(tile2)
+      (fp1, coord1) <- set1.fingerPrints
+      coord2 <- set2.fingerPrints.get(fp1)
     } {
       val delta = coord2 - coord1
       return MergeMore(sets.filterNot(x => x == set1 || x == set2) :+ set1.merge(set2, delta))
