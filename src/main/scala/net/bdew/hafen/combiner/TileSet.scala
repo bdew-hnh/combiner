@@ -32,7 +32,9 @@ import javax.imageio.ImageIO
 
 import scala.concurrent.{ExecutionContext, Future}
 
-case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) {
+trait TileSet {
+  val tiles: Map[Coord, MapTile]
+  val fingerPrints: Map[String, MapTile]
   lazy val minX = tiles.keys.map(_.x).min
   lazy val maxX = tiles.keys.map(_.x).max
   lazy val minY = tiles.keys.map(_.y).min
@@ -43,15 +45,22 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
 
   lazy val reverse = tiles.map(_.swap)
 
-  def saveCombined(output: File, grid: Boolean): Unit = {
+  def name: String
+
+  def saveCombined(output: File, grid: Boolean, coords: Boolean): Unit = {
     val result = new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
     val g = result.getGraphics
     for ((c, tile) <- tiles) {
       val ct = c - origin
       g.drawImage(tile.getImage, ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, null)
-      if (grid && (ct.x > 0 || ct.y > 0)) {
-        g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, (ct.x + 1) * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE)
-        g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, ct.x * Combiner.TILE_SIZE, (ct.y + 1) * Combiner.TILE_SIZE)
+      if (coords) {
+        g.drawString("(%d,%d)".format(ct.x, ct.y), ct.x * Combiner.TILE_SIZE + 3, ct.y * Combiner.TILE_SIZE + 10)
+      }
+      if (grid) {
+        if (tiles.isDefinedAt(c.copy(y = c.y - 1)))
+          g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, (ct.x + 1) * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE)
+        if (tiles.isDefinedAt(c.copy(x = c.x - 1)))
+          g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, ct.x * Combiner.TILE_SIZE, (ct.y + 1) * Combiner.TILE_SIZE)
       }
     }
     ImageIO.write(result, "png", output)
@@ -75,17 +84,25 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile
 
   def merge(that: TileSet, delta: Coord) = {
     var tiles = this.tiles
-    for ((c,t) <- that.tiles) {
+    for ((c, t) <- that.tiles) {
       val cmod = c - delta
       if (!tiles.isDefinedAt(cmod) || t.lastModified > tiles(cmod).lastModified)
         tiles += cmod -> t
     }
-    TileSet(tiles, this.fingerPrints ++ that.fingerPrints)
+    MergedTileSet(tiles, this.fingerPrints ++ that.fingerPrints)
   }
 }
 
+case class MergedTileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile]) extends TileSet {
+  lazy val name = "combined_" + TileSet.combinedCounter.next()
+}
+
+case class OriginalTileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, MapTile], name: String) extends TileSet
+
 object TileSet {
   private final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
+
+  val combinedCounter = Iterator.from(1)
 
   def load(dir: File, globFp: FingerPrints): Option[TileSet] = {
     val tiles =
@@ -100,7 +117,7 @@ object TileSet {
           (coord, tile) <- tiles
           fp <- lookup(tile.file.getName)
         } yield fp -> tile
-      Some(TileSet(tiles.toMap, fps.toMap))
+      Some(OriginalTileSet(tiles.toMap, fps.toMap, dir.getName))
     } else {
       None
     }

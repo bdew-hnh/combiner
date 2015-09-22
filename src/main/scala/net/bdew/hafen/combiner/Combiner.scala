@@ -56,7 +56,11 @@ object Combiner {
       sys.exit()
     }
 
-    val merged = inputSet.mergeTiles()
+    val merged =
+      if (args.autoMerge)
+        inputSet.mergeTiles()
+      else
+        inputSet.tileSets
 
     timer.mark("Merge")
 
@@ -69,10 +73,12 @@ object Combiner {
       outDir.mkdir()
       writeTiles(outDir, merged)
       timer.mark("Write Sets")
-      writeMergedImages(outDir, merged, args.grid)
-      timer.mark("Write Images")
+      if (args.imgOut) {
+        writeMergedImages(outDir, merged, args.grid, args.coords)
+        timer.mark("Write Images")
+      }
     } else {
-      writeMergedImages(inputs.head, merged, args.grid)
+      writeMergedImages(inputs.head, merged, args.grid, args.coords)
       timer.mark("Write Images")
     }
 
@@ -84,18 +90,18 @@ object Combiner {
     println("*** All done! ***")
   }
 
-  def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean): Unit = {
+  def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean, coords: Boolean): Unit = {
     Async("Saving Images") {
       for ((t, i) <- merged.zipWithIndex) yield Future {
-        t.saveCombined(new File(out, "combined_%d.png".format(i)), grid)
+        t.saveCombined(new File(out, t.name + ".png"), grid, coords)
       }
     } waitUntilDone()
   }
 
   def writeTiles(out: File, merged: List[TileSet]): Unit = {
     val q = Async("Saving Merged") {
-      (for ((tileSet, i) <- merged.zipWithIndex) yield {
-        tileSet.saveTilesAsync(new File(out, "combined_%d".format(i)))
+      (for (t <- merged) yield {
+        t.saveTilesAsync(new File(out, t.name))
       }).flatten
     } waitUntilDone()
   }

@@ -25,7 +25,8 @@
 
 package net.bdew.hafen.combiner
 
-case class Args(inputs: List[String], merge: Option[String], grid: Boolean, timer: Boolean)
+case class Args(inputs: List[String], merge: Option[String], 
+                grid: Boolean, timer: Boolean, imgOut: Boolean, autoMerge: Boolean, coords: Boolean)
 
 object Args {
   def parse(args: Array[String]) = realParse(args.toList)
@@ -38,18 +39,16 @@ object Args {
       }
       rest.copy(merge = Some(merge))
 
-    case "--grid" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(grid = true)
-
-    case "--time" :: tail =>
-      val rest = realParse(tail)
-      rest.copy(timer = true)
+    case "--noimg" :: tail => realParse(tail).copy(imgOut = false)
+    case "--nomerge" :: tail => realParse(tail).copy(autoMerge = false)
+    case "--coords" :: tail => realParse(tail).copy(coords = true)
+    case "--grid" :: tail => realParse(tail).copy(grid = true)
+    case "--time" :: tail => realParse(tail).copy(timer = true)
 
     case str :: tail =>
       val rest = realParse(tail)
       rest.copy(inputs = str +: rest.inputs)
 
-    case nil => Args(List.empty, None, grid = false, timer = false)
+    case nil => Args(List.empty, None, grid = false, timer = false, imgOut = true, autoMerge = true, coords = false)
   }
 }
