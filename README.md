@@ -8,4 +8,13 @@
 * **--time** - Shows timing data
 * All other parameters are treated as input directories
 
+### Combine mode
+
+* **--combine <indir1> <x1> <y1> <indir2> <x2> <y2> <outdir>**
+ * Manually combines two map folders and merges tiles and fingerprints
+ * **indir1 x1 y1** - specifies first input folder and coordinate of a reference tile
+ * **indir2 x2 y2** - specifies second input folder and coordinate of a reference tile
+ * **outdir** - name of new folder that will be created by combining the two input folders
+
+
 **Uses [ObjectPlanet PngEncoder](http://objectplanet.com/pngencoder/) for fast PNG output**
