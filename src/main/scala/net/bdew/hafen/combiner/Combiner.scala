@@ -95,7 +95,11 @@ object Combiner {
         sys.exit(0)
       }
       outDir.mkdir()
-      writeTiles(outDir, merged)
+      if (args.mpk) {
+        writeTilesMPK(outDir, merged)
+      } else {
+        writeTiles(outDir, merged)
+      }
       timer.mark("Write Sets")
       if (args.imgOut) {
         writeMergedImages(outDir, merged, args.grid, args.coords)
@@ -184,4 +188,13 @@ object Combiner {
       }).flatten
     } waitUntilDone()
   }
+
+  def writeTilesMPK(out: File, merged: List[TileSet]): Unit = {
+    val q = Async("Saving MPK Files") {
+      for ((t, i) <- merged.zipWithIndex) yield Future {
+        t.saveTilesMPK(new File(out, "combined_%s.mpk".format(i)))
+      }
+    } waitUntilDone()
+  }
+
 }

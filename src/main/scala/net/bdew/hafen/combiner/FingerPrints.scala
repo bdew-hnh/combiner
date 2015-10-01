@@ -35,19 +35,20 @@ class FingerPrints(val hashMap: Map[String, String]) {
 object FingerPrints {
   val nil = new FingerPrints(Map.empty)
 
-  def from(dataFile: File) = {
-    val data = if (dataFile.canRead && dataFile.isFile) {
-      val reader = new BufferedReader(new FileReader(dataFile))
-      Iterator.continually(reader.readLine())
-        .takeWhile(_ != null)
-        .map(_.split(":"))
-        .filter(_.size > 1)
-        .filterNot(x => BadHashes.bad.contains(x(1)))
-        .map(x => x(0) -> x(1))
-        .toMap
-    } else {
-      Map.empty[String, String]
-    }
+  def from(dataFile: File): FingerPrints =
+    if (dataFile.canRead && dataFile.isFile)
+      from(new FileInputStream(dataFile))
+    else nil
+
+  def from(stream: InputStream): FingerPrints = {
+    val reader = new BufferedReader(new InputStreamReader(stream))
+    val data = Iterator.continually(reader.readLine())
+      .takeWhile(_ != null)
+      .map(_.split(":"))
+      .filter(_.size > 1)
+      .filterNot(x => BadHashes.bad.contains(x(1)))
+      .map(x => x(0) -> x(1))
+      .toMap
     new FingerPrints(data)
   }
 }

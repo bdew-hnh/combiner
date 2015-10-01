@@ -25,14 +25,33 @@
 
 package net.bdew.hafen.combiner
 
-import java.io.File
+import java.awt.image.BufferedImage
+import java.io.{File, FileInputStream, InputStream}
+import java.util.zip.{ZipEntry, ZipFile}
 import javax.imageio.ImageIO
 
-case class MapTile(file: File) {
-  def getImage = ImageIO.read(file)
-  lazy val name = file.getAbsolutePath
-  lazy val lastModified = file.lastModified()
+trait MapTile {
+  def name: String
+  def lastModified: Long
+  def size: Int
+  def makeInputStream(): InputStream
+  def readImage(): BufferedImage
 }
 
+case class MapTileFile(file: File) extends MapTile {
+  override lazy val name = file.getAbsolutePath
+  override lazy val lastModified = file.lastModified()
+  override lazy val size = file.length().toInt
+  override def makeInputStream() = new FileInputStream(file)
+  override def readImage() = ImageIO.read(file)
+}
+
+case class MapTileMPK(zipFile: ZipFile, ent: ZipEntry) extends MapTile {
+  override lazy val name = ent.getName
+  override lazy val lastModified = ent.getLastModifiedTime.toMillis
+  override lazy val size = ent.getSize.toInt
+  override def makeInputStream() = zipFile.getInputStream(ent)
+  override def readImage() = ImageIO.read(makeInputStream())
+}
 
 

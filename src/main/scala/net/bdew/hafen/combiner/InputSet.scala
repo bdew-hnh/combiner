@@ -28,7 +28,7 @@ package net.bdew.hafen.combiner
 import java.io.File
 
 import scala.annotation.tailrec
-import scala.concurrent.{ExecutionContext, Future}
+import scala.concurrent.{ExecutionContext, Future, Promise}
 
 class InputSet(val tileSets: List[TileSet]) {
   def mergeTiles() = doMergeAll(tileSets)
@@ -72,7 +72,14 @@ object InputSet {
           List.empty
         } else {
           val globFp = FingerPrints.from(new File(path, "fingerprints.txt"))
-          path.listFiles().toList filter (x => x.canRead && x.isDirectory) map (dir => Future(TileSet.load(dir, globFp)))
+          for (file <- path.listFiles().toList if file.canRead) yield {
+            if (file.isDirectory)
+              Future(TileSet.load(file, globFp))
+            else if (file.getName.endsWith(".mpk"))
+              Future(Some(TileSet.loadMPK(file)))
+            else
+              Promise.successful(None).future
+          }
         }
       }).flatten
     }

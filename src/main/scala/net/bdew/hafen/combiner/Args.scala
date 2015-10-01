@@ -31,7 +31,8 @@ case class Args(inputs: List[String],
                 timer: Boolean,
                 imgOut: Boolean,
                 autoMerge: Boolean,
-                coords: Boolean
+                coords: Boolean,
+                mpk: Boolean
                  )
 
 object Args {
@@ -47,6 +48,7 @@ object Args {
 
     case "--noimg" :: tail => realParse(tail).copy(imgOut = false)
     case "--nomerge" :: tail => realParse(tail).copy(autoMerge = false)
+    case "--nompk" :: tail => realParse(tail).copy(mpk = false)
     case "--coords" :: tail => realParse(tail).copy(coords = true)
     case "--grid" :: tail => realParse(tail).copy(grid = true)
     case "--time" :: tail => realParse(tail).copy(timer = true)
@@ -55,6 +57,6 @@ object Args {
       val rest = realParse(tail)
       rest.copy(inputs = str +: rest.inputs)
 
-    case nil => Args(List.empty, merge = None, grid = false, timer = false, imgOut = true, autoMerge = true, coords = false)
+    case nil => Args(List.empty, merge = None, grid = false, timer = false, imgOut = true, autoMerge = true, coords = false, mpk = true)
   }
 }
