@@ -25,7 +25,6 @@
 
 package net.bdew.hafen.combiner
 
-import java.awt.image.BufferedImage
 import java.io.{File, FileOutputStream, FileWriter, OutputStreamWriter}
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
@@ -33,7 +32,6 @@ import java.nio.file.Files
 import java.nio.file.attribute.FileTime
 import java.util.zip.{CRC32, ZipEntry, ZipFile, ZipOutputStream}
 
-import com.objectplanet.image.PngEncoder
 import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -48,36 +46,6 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord])
   lazy val origin = Coord(minX, minY)
 
   lazy val reverse = tiles.map(_.swap)
-
-  def saveCombined(output: File, grid: Boolean, coords: Boolean): Unit = {
-    val result = try {
-      new BufferedImage(width * Combiner.TILE_SIZE, height * Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
-    } catch {
-      case e: OutOfMemoryError =>
-        println("Unable to draw map %s (%dx%d) - not enough memory".format(output.getName, width, height))
-        return
-    }
-    val g = result.getGraphics
-    for ((c, tile) <- tiles) {
-      val ct = c - origin
-      g.drawImage(tile.readImage, ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, null)
-      if (coords) {
-        g.drawString("(%d,%d)".format(ct.x, ct.y), ct.x * Combiner.TILE_SIZE + 3, ct.y * Combiner.TILE_SIZE + 10)
-      }
-      if (grid) {
-        if (tiles.isDefinedAt(c.copy(y = c.y - 1)))
-          g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, (ct.x + 1) * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE)
-        if (tiles.isDefinedAt(c.copy(x = c.x - 1)))
-          g.drawLine(ct.x * Combiner.TILE_SIZE, ct.y * Combiner.TILE_SIZE, ct.x * Combiner.TILE_SIZE, (ct.y + 1) * Combiner.TILE_SIZE)
-      }
-    }
-    val os = new FileOutputStream(output)
-    try {
-      new PngEncoder(PngEncoder.COLOR_TRUECOLOR_ALPHA, PngEncoder.DEFAULT_COMPRESSION).encode(result, os)
-    } finally {
-      os.close()
-    }
-  }
 
   def saveTilesAsync(dir: File)(implicit ec: ExecutionContext) = {
     dir.mkdirs()

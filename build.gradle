@@ -9,7 +9,7 @@ repositories {
 
 dependencies {
     compile "org.scala-lang:scala-library:2.11.7"
-    compile files("libs/com.objectplanet.image.PngEncoder.jar")
+    compile "ar.com.hjg:pngj:2.1.0"
 }
 
 jar {
@@ -17,7 +17,7 @@ jar {
     manifest {
         attributes(
                 'Main-Class': 'net.bdew.hafen.combiner.Combiner',
-                'Class-Path': 'lib/scala-library-2.11.7.jar lib/com.objectplanet.image.PngEncoder.jar'
+                'Class-Path': 'lib/scala-library-2.11.7.jar lib/pngj-2.1.0.jar'
         )
     }
 }

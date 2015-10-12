@@ -67,7 +67,6 @@ object Combiner {
         if (args.timer)
           timer.print()
       }
-
     } finally {
       pool.shutdown()
     }
@@ -124,7 +123,7 @@ object Combiner {
 
     Async("Saving Images") {
       for ((n, t) <- tileSets) yield Future {
-        t.saveCombined(new File(input, n.getName + ".png"), args.grid, args.coords)
+        CombinedWriter.saveCombined(t, new File(input, n.getName + ".png"), args.grid, args.coords)
       }
     } waitUntilDone()
 
@@ -176,7 +175,7 @@ object Combiner {
   def writeMergedImages(out: File, merged: List[TileSet], grid: Boolean, coords: Boolean): Unit = {
     Async("Saving Images") {
       for ((t, i) <- merged.zipWithIndex) yield Future {
-        t.saveCombined(new File(out, "combined_%d.png".format(i)), grid, coords)
+        CombinedWriter.saveCombined(t, new File(out, "combined_%d.png".format(i)), grid, coords)
       }
     } waitUntilDone()
   }
@@ -196,5 +195,4 @@ object Combiner {
       }
     } waitUntilDone()
   }
-
 }
