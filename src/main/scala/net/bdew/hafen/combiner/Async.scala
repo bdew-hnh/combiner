@@ -27,14 +27,14 @@ package net.bdew.hafen.combiner
 
 import scala.concurrent.duration.Duration
 import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Success, Failure}
+import scala.util.{Failure, Success}
 
 class Async[T](name: String, futures: List[Future[T]])(implicit EC: ExecutionContext) {
   lazy val length = futures.length
 
   def completed = futures flatMap (_.value) count {
-    case s:Success[T] => true
-    case f:Failure[T] => throw new RuntimeException("Error while "+name, f.exception)
+    case s: Success[T] => true
+    case f: Failure[T] => throw new RuntimeException("Error while " + name, f.exception)
   }
 
   def waitUntilDone() = {
@@ -56,7 +56,7 @@ class Async[T](name: String, futures: List[Future[T]])(implicit EC: ExecutionCon
 }
 
 object Async {
-  def apply[T](name: String)(f: => List[Future[T]])(implicit EC: ExecutionContext) = {
-    new Async(name, f)
+  def apply[T](name: String)(f: => Iterable[Future[T]])(implicit EC: ExecutionContext) = {
+    new Async(name, f.toList)
   }
 }

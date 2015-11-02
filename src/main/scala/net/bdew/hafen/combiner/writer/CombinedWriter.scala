@@ -1,10 +1,11 @@
-package net.bdew.hafen.combiner
+package net.bdew.hafen.combiner.writer
 
 import java.awt.Color
 import java.io.File
 import java.util
 
 import ar.com.hjg.pngj.{ImageInfo, PngWriter}
+import net.bdew.hafen.combiner.{Combiner, Coord, TileSet}
 
 object CombinedWriter {
   def saveCombined(tiles: TileSet, output: File, grid: Boolean, coords: Boolean): Unit = {

@@ -25,38 +25,130 @@
 
 package net.bdew.hafen.combiner
 
-case class Args(inputs: List[String],
-                merge: Option[String],
-                grid: Boolean,
-                timer: Boolean,
-                imgOut: Boolean,
-                autoMerge: Boolean,
-                coords: Boolean,
-                mpk: Boolean
-                 )
+import java.io.File
+
+import net.bdew.hafen.combiner.writer.{MapWriterDirectory, MapWriterMPK}
+
+import scala.reflect.ClassTag
+
+sealed trait Argument
+
+case class ArgInput(name: String) extends Argument
+
+abstract class Operation(val imgOut: Boolean = false, val mapOut: Boolean = false, val hasInputs: Boolean = false) extends Argument
+
+abstract class OpBasic(mapOut: Boolean) extends Operation(imgOut = true, mapOut = mapOut, hasInputs = true)
+
+case class OpMerge(dest: String) extends OpBasic(mapOut = true)
+
+case class OpNormal() extends OpBasic(mapOut = false)
+
+case class OpCombine(in1: String, coord1: Coord, in2: String, coord2: Coord, out: String) extends Operation(mapOut = true)
+
+case class OpImages(path: String) extends Operation(imgOut = true, mapOut = false, hasInputs = false)
+
+sealed trait Flag extends Argument {
+  def v: Boolean
+}
+
+case class FlagGrid(v: Boolean) extends Flag
+
+case class FlagTimer(v: Boolean) extends Flag
+
+case class FlagCoords(v: Boolean) extends Flag
+
+case class FlagImgOut(v: Boolean) extends Flag
+
+case class FlagMerge(v: Boolean) extends Flag
+
+case class FlagMpk(v: Boolean) extends Flag
+
+class Args(args: List[Argument]) {
+  lazy val operation = findArg[Operation].getOrElse(OpNormal())
+  lazy val inputs = {
+    val inp = findArgs[ArgInput] map (_.name)
+    if (inp.isEmpty)
+      List(new File("map"))
+    else
+      inp map (x => new File(x))
+  }
+
+  lazy val isEnabledCoords = getFlag[FlagCoords] getOrElse false
+  lazy val isEnabledGrid = getFlag[FlagGrid] getOrElse false
+  lazy val isEnabledTimer = getFlag[FlagTimer] getOrElse false
+  lazy val isEnabledImgOut = getFlag[FlagImgOut] getOrElse operation.imgOut
+  lazy val isEnabledMerge = getFlag[FlagMerge] getOrElse operation.isInstanceOf[OpMerge]
+  lazy val isEnabledMpk = getFlag[FlagMpk] getOrElse operation.mapOut
+
+  def getMapWriter =
+    if (isEnabledMpk)
+      MapWriterMPK
+    else
+      MapWriterDirectory
+
+  def verify(): Unit = {
+    if (findArgs[Operation].length > 1) Args.err("Multiple operation modes specified (--merge, --combine, --images)")
+    if (!operation.hasInputs && inputs.nonEmpty) Args.err("Current operation mode does not take inputs")
+    if (!operation.imgOut && isEnabledCoords) Args.warn("Useless flag in current mode: --coords")
+    if (!operation.imgOut && isEnabledGrid) Args.warn("Useless flag in current mode: --grid")
+    if (!operation.mapOut && isEnabledMpk) Args.warn("Useless flag in current mode: --nompk")
+    if (!operation.mapOut && !isEnabledImgOut) Args.warn("Useless flag in current mode: --noimg")
+  }
+
+  private def findArgs[T: ClassTag]: List[T] = {
+    val c = implicitly[ClassTag[T]].runtimeClass
+    args.filter(c.isInstance).asInstanceOf[List[T]]
+  }
+
+  private def findArg[T: ClassTag]: Option[T] = findArgs[T].headOption
+
+  private def getFlag[T <: Flag : ClassTag]: Option[Boolean] = findArg[T] map (_.v)
+}
+
+object IntParam {
+  def unapply(s: String): Option[Int] =
+    try {
+      Some(s.toInt)
+    } catch {
+      case e: NumberFormatException => Args.err("Invalid number: '%s'", s)
+    }
+}
 
 object Args {
-  def parse(args: Array[String]) = realParse(args.toList)
-  def realParse(args: List[String]): Args = args match {
-    case "--merge" :: merge :: tail =>
-      val rest = realParse(tail)
-      if (rest.merge.isDefined) {
-        println("--merge can't be used multiple times")
-        sys.exit()
-      }
-      rest.copy(merge = Some(merge))
+  def warn(msg: String, params: String*) = {
+    System.err.println("Warning: " + msg.format(params: _*))
+  }
 
-    case "--noimg" :: tail => realParse(tail).copy(imgOut = false)
-    case "--nomerge" :: tail => realParse(tail).copy(autoMerge = false)
-    case "--nompk" :: tail => realParse(tail).copy(mpk = false)
-    case "--coords" :: tail => realParse(tail).copy(coords = true)
-    case "--grid" :: tail => realParse(tail).copy(grid = true)
-    case "--time" :: tail => realParse(tail).copy(timer = true)
+  def err(msg: String, params: String*) = {
+    System.err.println("Error: " + msg.format(params: _*))
+    sys.exit(1)
+  }
 
-    case str :: tail =>
-      val rest = realParse(tail)
-      rest.copy(inputs = str +: rest.inputs)
+  def parse(args: Array[String]) = {
+    val parsed = new Args(realParse(args.toList))
+    parsed.verify()
+    parsed
+  }
 
-    case nil => Args(List.empty, merge = None, grid = false, timer = false, imgOut = true, autoMerge = true, coords = false, mpk = true)
+  def realParse(args: List[String]): List[Argument] = args match {
+    case "--merge" :: path :: tail => OpMerge(path) +: realParse(tail)
+    case "--images" :: path :: tail => OpImages(path) +: realParse(tail)
+
+    case "--combine" :: in1 :: IntParam(x1) :: IntParam(y1) :: in2 :: IntParam(x2) :: IntParam(y2) :: out :: tail =>
+      OpCombine(in1, Coord(x1, y1), in2, Coord(x2, y2), out) +: realParse(tail)
+
+    case "--noimg" :: tail => FlagImgOut(false) +: realParse(tail)
+    case "--nomerge" :: tail => FlagMerge(false) +: realParse(tail)
+    case "--nompk" :: tail => FlagMpk(false) +: realParse(tail)
+    case "--coords" :: tail => FlagCoords(true) +: realParse(tail)
+    case "--grid" :: tail => FlagGrid(true) +: realParse(tail)
+    case "--time" :: tail => FlagTimer(true) +: realParse(tail)
+
+    case str :: tail if str.startsWith("--") =>
+      err("Invalid flag '%s'", str)
+
+    case str :: tail => ArgInput(str) +: realParse(tail)
+
+    case nil => List.empty
   }
 }

@@ -25,16 +25,8 @@
 
 package net.bdew.hafen.combiner
 
-import java.io.{File, FileOutputStream, FileWriter, OutputStreamWriter}
-import java.nio.ByteBuffer
-import java.nio.channels.Channels
-import java.nio.file.Files
-import java.nio.file.attribute.FileTime
-import java.util.zip.{CRC32, ZipEntry, ZipFile, ZipOutputStream}
-
-import com.sun.xml.internal.messaging.saaj.util.ByteOutputStream
-
-import scala.concurrent.{ExecutionContext, Future}
+import java.io.File
+import java.util.zip.ZipFile
 
 case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord]) {
   lazy val minX = tiles.keys.map(_.x).min
@@ -46,65 +38,6 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord])
   lazy val origin = Coord(minX, minY)
 
   lazy val reverse = tiles.map(_.swap)
-
-  def saveTilesAsync(dir: File)(implicit ec: ExecutionContext) = {
-    dir.mkdirs()
-    val reverseFp = fingerPrints.map(_.swap)
-    val fpWriter = new FileWriter(new File(dir, "fingerprints.txt"))
-    try {
-      for ((coord, tile) <- tiles) yield {
-        val relocated = coord - origin
-        if (reverseFp.contains(coord))
-          fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(coord)))
-        val file = new File(dir, "tile_%d_%d.png".format(relocated.x, relocated.y))
-        Future {
-          Files.copy(tile.makeInputStream(), file.toPath)
-          file.setLastModified(tile.lastModified)
-        }
-      }
-    } finally {
-      fpWriter.close()
-    }
-  }
-
-  def saveTilesMPK(mpk: File): Unit = {
-    val zipStream = new ZipOutputStream(new FileOutputStream(mpk))
-    val crc = new CRC32()
-    try {
-      val reverseFp = fingerPrints.map(_.swap)
-      val fpBytes = new ByteOutputStream()
-      val fpWriter = new OutputStreamWriter(fpBytes)
-      val zipChan = Channels.newChannel(zipStream)
-      zipStream.setMethod(ZipOutputStream.STORED)
-      zipStream.setLevel(0)
-      for ((coord, tile) <- tiles) yield {
-        val relocated = coord - origin
-        if (reverseFp.contains(coord))
-          fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(coord)))
-        val buf = ByteBuffer.allocate(tile.size.toInt)
-        Utils.fullyRead(Channels.newChannel(tile.makeInputStream()), buf)
-        buf.flip()
-        crc.reset()
-        crc.update(buf)
-        buf.rewind()
-        val zipEntry = new ZipEntry("tile_%d_%d.png".format(relocated.x, relocated.y))
-        zipEntry.setCrc(crc.getValue)
-        zipEntry.setSize(tile.size)
-        zipEntry.setCompressedSize(tile.size)
-        zipEntry.setLastModifiedTime(FileTime.fromMillis(tile.lastModified))
-        zipStream.putNextEntry(zipEntry)
-        Utils.fullyWrite(zipChan, buf)
-        zipStream.closeEntry()
-      }
-      zipStream.setMethod(ZipOutputStream.DEFLATED)
-      zipStream.setLevel(9)
-      zipStream.putNextEntry(new ZipEntry("fingerprints.txt"))
-      zipStream.write(fpBytes.getBytes)
-      zipStream.closeEntry()
-    } finally {
-      zipStream.close()
-    }
-  }
 
   def merge(that: TileSet, delta: Coord) = {
     var tiles = this.tiles
@@ -119,8 +52,6 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord])
 
 object TileSet {
   private final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
-
-  val combinedCounter = Iterator.from(1)
 
   def checkFarTiles(tiles: List[(Coord, MapTile)], source: String) = {
     val coords = tiles.map(_._1)
