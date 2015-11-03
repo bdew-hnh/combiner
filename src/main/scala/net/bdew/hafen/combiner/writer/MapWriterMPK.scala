@@ -40,6 +40,7 @@ object MapWriterMPK extends MapWriter {
         Utils.fullyWrite(zipChan, buf)
         zipStream.closeEntry()
       }
+      fpWriter.flush()
       zipStream.setMethod(ZipOutputStream.DEFLATED)
       zipStream.setLevel(9)
       zipStream.putNextEntry(new ZipEntry("fingerprints.txt"))
