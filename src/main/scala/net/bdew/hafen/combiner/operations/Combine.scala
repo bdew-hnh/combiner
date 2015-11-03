@@ -3,6 +3,7 @@ package net.bdew.hafen.combiner.operations
 import java.io.File
 
 import net.bdew.hafen.combiner._
+import net.bdew.hafen.combiner.reader.TileSetReader
 
 object Combine {
   implicit val EC = Combiner.EC
@@ -29,12 +30,12 @@ object Combine {
       sys.exit(-1)
     }
 
-    val t1 = TileSet.load(in1d, FingerPrints.nil) getOrElse {
+    val t1 = TileSetReader.load(in1d, FingerPrints.nil) getOrElse {
       println("! Input 1 is empty")
       sys.exit(-1)
     }
 
-    val t2 = TileSet.load(in2d, FingerPrints.nil) getOrElse {
+    val t2 = TileSetReader.load(in2d, FingerPrints.nil) getOrElse {
       println("! Input 2 is empty")
       sys.exit(-1)
     }

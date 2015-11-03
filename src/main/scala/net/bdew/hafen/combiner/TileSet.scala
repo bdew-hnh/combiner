@@ -25,9 +25,6 @@
 
 package net.bdew.hafen.combiner
 
-import java.io.File
-import java.util.zip.ZipFile
-
 case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord]) {
   lazy val minX = tiles.keys.map(_.x).min
   lazy val maxX = tiles.keys.map(_.x).max
@@ -47,65 +44,5 @@ case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord])
         tiles += cmod -> t
     }
     TileSet(tiles, this.fingerPrints ++ that.fingerPrints.map(x => x._1 -> (x._2 - delta)))
-  }
-}
-
-object TileSet {
-  private final val mapTileName = "^tile_(-?[0-9]+)_(-?[0-9]+)\\.png$".r
-
-  def checkFarTiles(tiles: List[(Coord, MapTile)], source: String) = {
-    val coords = tiles.map(_._1)
-    for (c1 <- coords) {
-      val md = coords.filterNot(_ == c1).map(_.distance(c1)).min
-      if (md > 5) {
-        println("Tile %s in %s is %.0f tiles away from other tiles! This is probably bad data.".format(c1, source, md))
-        sys.exit(-1)
-      }
-    }
-  }
-
-  def loadMPK(mpk: File): TileSet = {
-    import scala.collection.JavaConversions._
-    val zf = new ZipFile(mpk)
-    val tiles = for {
-      ent <- zf.entries().toList
-      name <- mapTileName.findFirstMatchIn(ent.getName)
-    } yield Coord(name.group(1).toInt, name.group(2).toInt) -> MapTileMPK(zf, ent)
-
-    checkFarTiles(tiles, mpk.getAbsolutePath)
-
-    val fpe = Option(zf.getEntry("fingerprints.txt"))
-      .map(ent => FingerPrints.from(zf.getInputStream(ent)))
-      .getOrElse(FingerPrints.nil)
-
-    val fps =
-      for {
-        (coord, tile) <- tiles
-        fp <- fpe.hashMap.get(tile.name)
-      } yield fp -> coord
-
-    TileSet(tiles.toMap, fps.toMap)
-  }
-
-  def load(dir: File, globFp: FingerPrints): Option[TileSet] = {
-    val tiles =
-      for {
-        file <- dir.listFiles().toList if file.canRead && !file.isDirectory
-        name <- mapTileName.findFirstMatchIn(file.getName)
-      } yield Coord(name.group(1).toInt, name.group(2).toInt) -> MapTileFile(file)
-
-    checkFarTiles(tiles, dir.getAbsolutePath)
-
-    if (tiles.nonEmpty) {
-      val lookup = globFp.mkLookup(dir.getName, FingerPrints.from(new File(dir, "fingerprints.txt")))
-      val fps =
-        for {
-          (coord, tile) <- tiles
-          fp <- lookup(tile.file.getName)
-        } yield fp -> coord
-      Some(TileSet(tiles.toMap, fps.toMap))
-    } else {
-      None
-    }
   }
 }
