@@ -90,6 +90,6 @@ object InputSet {
       sys.exit(-1)
     }
     val globFp = FingerPrints.from(new File(path, "fingerprints.txt"))
-    path.listFiles().toList filter (x => x.canRead && x.isDirectory) flatMap (dir => TileSetReader.load(dir, globFp).map(x => dir -> x))
+    path.listFiles().toList flatMap (dir => TileSetReader.load(dir, globFp).map(x => dir -> x))
   }
 }
