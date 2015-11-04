@@ -93,7 +93,7 @@ class Args(args: List[Argument]) {
 
   def verify(): Unit = {
     if (findArgs[Operation].length > 1) Args.err("Multiple operation modes specified (--merge, --combine, --images)")
-    if (!operation.hasInputs &&  findArgs[ArgInput].nonEmpty) Args.err("Current operation mode does not take inputs")
+    if (!operation.hasInputs && findArgs[ArgInput].nonEmpty) Args.err("Current operation mode does not take inputs")
     if (!operation.imgOut && isEnabledCoords) Args.warn("Useless flag in current mode: --coords")
     if (!operation.imgOut && isEnabledGrid) Args.warn("Useless flag in current mode: --grid")
     if (!operation.mapOut && isEnabledMpk) Args.warn("Useless flag in current mode: --nompk")
