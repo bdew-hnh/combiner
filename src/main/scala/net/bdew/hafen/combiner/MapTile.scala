@@ -26,7 +26,7 @@
 package net.bdew.hafen.combiner
 
 import java.awt.image.BufferedImage
-import java.io.{File, FileInputStream, InputStream}
+import java.io._
 import java.util.zip.{ZipEntry, ZipFile}
 import javax.imageio.ImageIO
 
@@ -36,6 +36,27 @@ trait MapTile {
   def size: Int
   def makeInputStream(): InputStream
   def readImage(): BufferedImage
+}
+
+object NullTile extends MapTile {
+  lazy val nullImg = new BufferedImage(Combiner.TILE_SIZE, Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
+  lazy val nullBytes = {
+    val bos = new ByteArrayOutputStream()
+    ImageIO.write(nullImg, "png", bos)
+    bos.toByteArray
+  }
+
+  override def name = "<null>"
+  override def readImage() = nullImg
+  override def makeInputStream() = new ByteArrayInputStream(nullBytes)
+  override def lastModified = Long.MinValue
+  override def size = nullBytes.length
+
+  def write(out: File) = {
+    val fs = new FileOutputStream(out)
+    fs.write(nullBytes)
+    fs.close()
+  }
 }
 
 case class MapTileFile(file: File) extends MapTile {

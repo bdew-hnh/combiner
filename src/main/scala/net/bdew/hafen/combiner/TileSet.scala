@@ -25,11 +25,26 @@
 
 package net.bdew.hafen.combiner
 
-case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord]) {
-  lazy val minX = tiles.keys.map(_.x).min
-  lazy val maxX = tiles.keys.map(_.x).max
-  lazy val minY = tiles.keys.map(_.y).min
-  lazy val maxY = tiles.keys.map(_.y).max
+trait BaseTileSet {
+  val tiles: Map[Coord, MapTile]
+  def minX: Int
+  def maxX: Int
+  def minY: Int
+  def maxY: Int
+}
+
+case class SimpleTileSet(tiles: Map[Coord, MapTile], size: Int) extends BaseTileSet {
+  override def minX = 0
+  override def minY = 0
+  override def maxX = size
+  override def maxY = size
+}
+
+case class TileSet(tiles: Map[Coord, MapTile], fingerPrints: Map[String, Coord]) extends BaseTileSet {
+  override lazy val minX = tiles.keys.map(_.x).min
+  override lazy val maxX = tiles.keys.map(_.x).max
+  override lazy val minY = tiles.keys.map(_.y).min
+  override lazy val maxY = tiles.keys.map(_.y).max
   lazy val width = maxX - minX + 1
   lazy val height = maxY - minY + 1
   lazy val origin = Coord(minX, minY)

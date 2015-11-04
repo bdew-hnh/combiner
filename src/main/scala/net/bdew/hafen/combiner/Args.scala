@@ -45,6 +45,8 @@ case class OpNormal() extends OpBasic(mapOut = false)
 
 case class OpCombine(in1: String, coord1: Coord, in2: String, coord2: Coord, out: String) extends Operation(mapOut = true)
 
+case class OpGMap(src: String, dest: String, minZoom: Int) extends Operation(imgOut = true, hasInputs = false)
+
 case class OpImages(path: String) extends Operation(imgOut = true, mapOut = false, hasInputs = false)
 
 sealed trait Flag extends Argument {
@@ -63,6 +65,8 @@ case class FlagMerge(v: Boolean) extends Flag
 
 case class FlagMpk(v: Boolean) extends Flag
 
+case class FlagNullTiles(v: Boolean) extends Flag
+
 class Args(args: List[Argument]) {
   lazy val operation = findArg[Operation].getOrElse(OpNormal())
   lazy val inputs = {
@@ -79,6 +83,7 @@ class Args(args: List[Argument]) {
   lazy val isEnabledImgOut = getFlag[FlagImgOut] getOrElse operation.imgOut
   lazy val isEnabledMerge = getFlag[FlagMerge] getOrElse operation.isInstanceOf[OpMerge]
   lazy val isEnabledMpk = getFlag[FlagMpk] getOrElse operation.mapOut
+  lazy val isEnabledNullTiles = getFlag[FlagNullTiles] getOrElse false
 
   def getMapWriter =
     if (isEnabledMpk)
@@ -88,11 +93,12 @@ class Args(args: List[Argument]) {
 
   def verify(): Unit = {
     if (findArgs[Operation].length > 1) Args.err("Multiple operation modes specified (--merge, --combine, --images)")
-    if (!operation.hasInputs && inputs.nonEmpty) Args.err("Current operation mode does not take inputs")
+    if (!operation.hasInputs &&  findArgs[ArgInput].nonEmpty) Args.err("Current operation mode does not take inputs")
     if (!operation.imgOut && isEnabledCoords) Args.warn("Useless flag in current mode: --coords")
     if (!operation.imgOut && isEnabledGrid) Args.warn("Useless flag in current mode: --grid")
     if (!operation.mapOut && isEnabledMpk) Args.warn("Useless flag in current mode: --nompk")
     if (!operation.mapOut && !isEnabledImgOut) Args.warn("Useless flag in current mode: --noimg")
+    if (!operation.isInstanceOf[OpGMap] && isEnabledNullTiles) Args.warn("Useless flag in current mode: --nulltiles")
   }
 
   private def findArgs[T: ClassTag]: List[T] = {
@@ -134,6 +140,8 @@ object Args {
     case "--merge" :: path :: tail => OpMerge(path) +: realParse(tail)
     case "--images" :: path :: tail => OpImages(path) +: realParse(tail)
 
+    case "--gmap" :: in :: out :: IntParam(zl) :: tail => OpGMap(in, out, zl) +: realParse(tail)
+
     case "--combine" :: in1 :: IntParam(x1) :: IntParam(y1) :: in2 :: IntParam(x2) :: IntParam(y2) :: out :: tail =>
       OpCombine(in1, Coord(x1, y1), in2, Coord(x2, y2), out) +: realParse(tail)
 
@@ -143,6 +151,7 @@ object Args {
     case "--coords" :: tail => FlagCoords(true) +: realParse(tail)
     case "--grid" :: tail => FlagGrid(true) +: realParse(tail)
     case "--time" :: tail => FlagTimer(true) +: realParse(tail)
+    case "--nulltiles" :: tail => FlagNullTiles(true) +: realParse(tail)
 
     case str :: tail if str.startsWith("--") =>
       err("Invalid flag '%s'", str)
