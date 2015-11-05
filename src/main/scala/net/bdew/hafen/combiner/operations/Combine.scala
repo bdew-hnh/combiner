@@ -44,10 +44,10 @@ object Combine {
     println("* Output: " + outd.getAbsolutePath)
     println("* Delta: " + delta)
 
-    if (!in1d.exists() || !in1d.canRead || !in1d.isDirectory) {
+    if (!in1d.exists() || !in1d.canRead) {
       println("! Input 1 does not exist or is not readable")
       sys.exit(-1)
-    } else if (!in2d.exists() || !in2d.canRead || !in2d.isDirectory) {
+    } else if (!in2d.exists() || !in2d.canRead) {
       println("! Input 2 does not exist or is not readable")
       sys.exit(-1)
     } else if (outd.exists()) {
