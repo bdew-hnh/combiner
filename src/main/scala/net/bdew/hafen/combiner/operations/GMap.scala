@@ -25,8 +25,8 @@
 
 package net.bdew.hafen.combiner.operations
 
-import java.awt.RenderingHints
 import java.awt.image.BufferedImage
+import java.awt.{Color, RenderingHints}
 import java.io.File
 import java.nio.file.Files
 import javax.imageio.ImageIO
@@ -76,15 +76,33 @@ object GMap {
     val baseLevelDir = new File(destDir, maxZoomLevel.toString)
 
     val baseLevel =
-      Async("Copy base tiles") {
+      Async("Generating base tiles") {
         (for (x <- 0 until size) yield {
           val xDir = new File(baseLevelDir, x.toString)
           xDir.mkdirs()
           for (y <- 0 until size if args.isEnabledNullTiles || tiles.tiles.isDefinedAt(Coord(x, y) - delta)) yield Future {
             val tile = tiles.tiles.getOrElse(Coord(x, y) - delta, NullTile)
             val out = new File(baseLevelDir, "%d/%d.png".format(x, y))
-            Files.copy(tile.makeInputStream(), out.toPath)
-            Coord(x, y) -> tile
+            if (tile != NullTile && (args.isEnabledCoords || args.isEnabledGrid)) {
+              val img = tile.readImage()
+              val gr = img.getGraphics
+              if (args.isEnabledCoords) {
+                gr.drawString("(%d,%d)".format(x - delta.x, y - delta.y), 3, 10)
+              }
+              if (args.isEnabledGrid) {
+                gr.setColor(Color.WHITE)
+                if (tiles.tiles.isDefinedAt(Coord(x - delta.x, y - 1 - delta.y)))
+                  gr.drawLine(0, 0, Combiner.TILE_SIZE, 0)
+                if (tiles.tiles.isDefinedAt(Coord(x - 1 - delta.x, y - delta.y)))
+                  gr.drawLine(0, 0, 0, Combiner.TILE_SIZE)
+              }
+              gr.dispose()
+              ImageIO.write(img, "png", out)
+              Coord(x, y) -> MapTileFile(out)
+            } else {
+              Files.copy(tile.makeInputStream(), out.toPath)
+              Coord(x, y) -> tile
+            }
           }
         }).flatten
       } waitUntilDone()
