@@ -25,6 +25,7 @@
 
 package net.bdew.hafen.combiner
 
+import java.awt.RenderingHints
 import java.io.File
 
 import net.bdew.hafen.combiner.writer.{MapWriterDirectory, MapWriterMPK}
@@ -45,9 +46,19 @@ case class OpNormal() extends OpBasic(mapOut = false)
 
 case class OpCombine(in1: String, coord1: Coord, in2: String, coord2: Coord, out: String) extends Operation(mapOut = true)
 
-case class OpGMap(src: String, dest: String, minZoom: Int) extends Operation(imgOut = true, hasInputs = false)
+case class OpGMap(src: String, dest: String) extends Operation(imgOut = true, hasInputs = false)
 
 case class OpImages(path: String) extends Operation(imgOut = true, mapOut = false, hasInputs = false)
+
+case class ArgMinZoom(level: Int) extends Argument
+
+abstract class ArgInterpolation(val mode: AnyRef) extends Argument
+
+case object InterpolNearest extends ArgInterpolation(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
+
+case object InterpolBilinear extends ArgInterpolation(RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+
+case object InterpolBicubic extends ArgInterpolation(RenderingHints.VALUE_INTERPOLATION_BICUBIC)
 
 sealed trait Flag extends Argument {
   def v: Boolean
@@ -85,6 +96,9 @@ class Args(args: List[Argument]) {
   lazy val isEnabledMpk = getFlag[FlagMpk] getOrElse operation.mapOut
   lazy val isEnabledNullTiles = getFlag[FlagNullTiles] getOrElse false
 
+  lazy val minZoom = findArg[ArgMinZoom].map(_.level).getOrElse(0)
+  lazy val interpolationMode = findArg[ArgInterpolation].map(_.mode).getOrElse(RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+
   def getMapWriter =
     if (isEnabledMpk)
       MapWriterMPK
@@ -98,7 +112,13 @@ class Args(args: List[Argument]) {
     if (!operation.imgOut && isEnabledGrid) Args.warn("Useless flag in current mode: --grid")
     if (!operation.mapOut && isEnabledMpk) Args.warn("Useless flag in current mode: --nompk")
     if (!operation.mapOut && !isEnabledImgOut) Args.warn("Useless flag in current mode: --noimg")
-    if (!operation.isInstanceOf[OpGMap] && isEnabledNullTiles) Args.warn("Useless flag in current mode: --nulltiles")
+    if (!operation.isInstanceOf[OpGMap]) {
+      if (isEnabledNullTiles) Args.warn("Useless flag in current mode: --nulltiles")
+      if (findArgs[ArgInterpolation].nonEmpty) Args.warn("Useless flag in current mode: --interpolation")
+      if (findArg[ArgMinZoom].nonEmpty) Args.warn("Useless flag in current mode: --minzoom")
+    }
+    if (findArgs[ArgInterpolation].length > 1) Args.warn("multiple --interpolation flags will be ignored")
+    if (findArgs[ArgMinZoom].length > 1) Args.warn("multiple --minzoom flags will be ignored")
   }
 
   private def findArgs[T: ClassTag]: List[T] = {
@@ -140,7 +160,7 @@ object Args {
     case "--merge" :: path :: tail => OpMerge(path) +: realParse(tail)
     case "--images" :: path :: tail => OpImages(path) +: realParse(tail)
 
-    case "--gmap" :: in :: out :: IntParam(zl) :: tail => OpGMap(in, out, zl) +: realParse(tail)
+    case "--gmap" :: in :: out :: tail => OpGMap(in, out) +: realParse(tail)
 
     case "--combine" :: in1 :: IntParam(x1) :: IntParam(y1) :: in2 :: IntParam(x2) :: IntParam(y2) :: out :: tail =>
       OpCombine(in1, Coord(x1, y1), in2, Coord(x2, y2), out) +: realParse(tail)
@@ -151,7 +171,19 @@ object Args {
     case "--coords" :: tail => FlagCoords(true) +: realParse(tail)
     case "--grid" :: tail => FlagGrid(true) +: realParse(tail)
     case "--time" :: tail => FlagTimer(true) +: realParse(tail)
+
     case "--nulltiles" :: tail => FlagNullTiles(true) +: realParse(tail)
+
+    case "--interpolation" :: str :: tail =>
+      (str match {
+        case "nearest" => InterpolNearest
+        case "bilinear" => InterpolBilinear
+        case "bicubic" => InterpolBicubic
+        case s => err("Invalid interpolation mode: '%s'", s)
+      }) +: realParse(tail)
+
+    case "--minzoom" :: IntParam(level) :: tail =>
+      ArgMinZoom(level) +: realParse(tail)
 
     case str :: tail if str.startsWith("--") =>
       err("Invalid flag '%s'", str)

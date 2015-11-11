@@ -89,23 +89,23 @@ object GMap {
         }).flatten
       } waitUntilDone()
 
-    generateNextZoom(SimpleTileSet(baseLevel.toMap, size), destDir, maxZoomLevel - 1, op.minZoom, timer, args.isEnabledNullTiles)
+    generateNextZoom(SimpleTileSet(baseLevel.toMap, size), destDir, maxZoomLevel - 1, args, timer)
 
     timer.mark("DONE")
   }
 
   @tailrec
-  def generateNextZoom(tiles: SimpleTileSet, dest: File, thisZoom: Int, minZoom: Int, timer: Timer, nullTiles: Boolean): Unit = {
+  def generateNextZoom(tiles: SimpleTileSet, dest: File, thisZoom: Int, args: Args, timer: Timer): Unit = {
     timer.mark("GENERATE ZOOM %d".format(thisZoom + 1))
     val next = Async("Generating zoom level %d".format(thisZoom)) {
-      generateTiles(tiles, dest, thisZoom, nullTiles)
+      generateTiles(tiles, dest, thisZoom, args)
     } waitUntilDone()
 
-    if (thisZoom > minZoom)
-      generateNextZoom(SimpleTileSet(next.toMap, tiles.size / 2), dest, thisZoom - 1, minZoom, timer, nullTiles)
+    if (thisZoom > args.minZoom)
+      generateNextZoom(SimpleTileSet(next.toMap, tiles.size / 2), dest, thisZoom - 1, args, timer)
   }
 
-  def generateTiles(tiles: BaseTileSet, dest: File, zl: Int, nullTiles: Boolean) = {
+  def generateTiles(tiles: BaseTileSet, dest: File, zl: Int, args: Args) = {
     val dir = new File(dest, zl.toString)
     for {
       x <- tiles.minX / 2 until tiles.maxX / 2
@@ -115,7 +115,7 @@ object GMap {
       val out = new File(dir, "%d/%d.png".format(x, y))
       out.getParentFile.mkdirs()
       if (toDraw.isEmpty) {
-        if (nullTiles)
+        if (args.isEnabledNullTiles)
           NullTile.write(out)
         Coord(x, y) -> NullTile
       } else {
@@ -126,7 +126,7 @@ object GMap {
         graphics.dispose()
         val scaled = new BufferedImage(Combiner.TILE_SIZE, Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
         val scaledGraphics = scaled.createGraphics()
-        scaledGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+        scaledGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, args.interpolationMode)
         scaledGraphics.drawImage(img, 0, 0, Combiner.TILE_SIZE, Combiner.TILE_SIZE, null)
         ImageIO.write(scaled, "png", out)
         Coord(x, y) -> MapTileFile(out)
