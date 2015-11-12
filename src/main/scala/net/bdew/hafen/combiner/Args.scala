@@ -72,8 +72,6 @@ case class FlagCoords(v: Boolean) extends Flag
 
 case class FlagImgOut(v: Boolean) extends Flag
 
-case class FlagMerge(v: Boolean) extends Flag
-
 case class FlagMpk(v: Boolean) extends Flag
 
 case class FlagNullTiles(v: Boolean) extends Flag
@@ -92,7 +90,6 @@ class Args(args: List[Argument]) {
   lazy val isEnabledGrid = getFlag[FlagGrid] getOrElse false
   lazy val isEnabledTimer = getFlag[FlagTimer] getOrElse false
   lazy val isEnabledImgOut = getFlag[FlagImgOut] getOrElse operation.imgOut
-  lazy val isEnabledMerge = getFlag[FlagMerge] getOrElse operation.isInstanceOf[OpMerge]
   lazy val isEnabledMpk = getFlag[FlagMpk] getOrElse operation.mapOut
   lazy val isEnabledNullTiles = getFlag[FlagNullTiles] getOrElse false
 
@@ -166,7 +163,6 @@ object Args {
       OpCombine(in1, Coord(x1, y1), in2, Coord(x2, y2), out) +: realParse(tail)
 
     case "--noimg" :: tail => FlagImgOut(false) +: realParse(tail)
-    case "--nomerge" :: tail => FlagMerge(false) +: realParse(tail)
     case "--nompk" :: tail => FlagMpk(false) +: realParse(tail)
     case "--coords" :: tail => FlagCoords(true) +: realParse(tail)
     case "--grid" :: tail => FlagGrid(true) +: realParse(tail)
