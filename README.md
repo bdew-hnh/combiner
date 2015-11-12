@@ -1,17 +1,61 @@
-### Command line parameters
+### About
 
-* **--coords** - Adds coordinates to each tile on stitched images
-* **--grid** - Draws grid on stitched images
-* **--images \<dir>** - Only stitch images, without merging, can be used only with a single input
-* **--merge \<outDir>** - Will save combined tile sets to outDir (which must not exist)
-* **--noimg** - Will not generate stitched images, can only be used with --merge
-* **--time** - Shows timing data
-* All other parameters are treated as input directories
+This is a tools for manipulating map data from Haven and Hearth custom clients.
+
+Map tiles are stored in either a folder for each set, with files named **tile_{x}_{y}.png** or in a combined file with ".mpk" extension.
+
+### Normal operation mode
+
+**combiner [input1 [input2] [input3] ...]**
+
+In this mode all inputs will be merged in memory, and stitched images will be generated in the first input directory.
+
+In case no inputs are specified - a directory named "map" in the current working directory will be used.
+
+### Merge mode
+
+**combiner --merge \<output> input1 [input2] [input3] ...**
+
+In this mode all inputs will be merged, with the merged tile sets and stitched images written out to the output location.
+
+Output location must not exists.
+
+### Images mode
+
+**combiner --images \<directory>**
+
+In this mod all tile sets in the directory will be stitched into images, without any automated merging.
 
 ### Combine mode
 
-* **--combine \<indir1> \<x1> \<y1> \<indir2> \<x2> \<y2> \<outdir>**
- * Manually combines two map folders and merges tiles and fingerprints
- * **indir1 x1 y1** - specifies first input folder and coordinate of a reference tile
- * **indir2 x2 y2** - specifies second input folder and coordinate of a reference tile
- * **outdir** - name of new folder that will be created by combining the two input folders
+**combiner --combine \<input1> \<x1> \<y1> \<input2> \<x2> \<y2> \<output>**
+
+Manually combines two tile sets and merges tiles and fingerprints.
+
+input1 and input2 should be paths to tile sets (either directories or .mpk files) with (x1,y1) and (x2,y2) representing the same tile in both sets.
+
+Output location must not exists.
+
+### Online map generation mod
+
+**combiner --gmap \<input> \<output>**
+
+This mode is used to generate data for online map display systems (google maps, leaflet, etc.) that need pre-generated zoom levels.
+
+Input should be a path of a tile set (either a directory with images or an .mpk file). Output should not exist.
+
+Special options for this mode:
+
+ * **--nulltiles** - will force generation of tiles that have no data (fully transparent)
+ * **--minzoom** - specifies the minimum zoom level to generate (default is 0)
+ * **--interpolation {bilinear|bicubic|nearest}** - chooses what interpolation method to use for resizing (default is bilinear)
+
+### General command line options
+
+These options can appear anywhere on the command line
+
+* **--coords** - Adds coordinates to each tile on stitched images
+* **--grid** - Draws grid on stitched images
+* **--noimg** - Will not generate stitched images (only useable with --merge)
+* **--nompk** - Forces generation of directory tile sets instead of .mpk files (only useable with --merge and --combine)
+* **--time** - Shows timing data
