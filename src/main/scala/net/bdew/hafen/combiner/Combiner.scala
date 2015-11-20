@@ -43,7 +43,7 @@ object Combiner {
         case x: OpBasic => operations.Normal.run(x, args, timer)
         case x: OpCombine => operations.Combine.run(x, args, timer)
         case x: OpImages => operations.Images.run(x, args, timer)
-        case x: OpGMap => operations.GMap.run(x, args, timer)
+        case x: OpGMap => new operations.GMap(args).run(x, timer)
       }
 
       if (args.isEnabledTimer)

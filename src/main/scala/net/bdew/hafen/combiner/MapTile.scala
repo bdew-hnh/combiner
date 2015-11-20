@@ -38,8 +38,8 @@ trait MapTile {
   def readImage(): BufferedImage
 }
 
-object NullTile extends MapTile {
-  lazy val nullImg = new BufferedImage(Combiner.TILE_SIZE, Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
+class NullTile(sz: Int) extends MapTile {
+  lazy val nullImg = new BufferedImage(sz, sz, BufferedImage.TYPE_INT_ARGB)
   lazy val nullBytes = {
     val bos = new ByteArrayOutputStream()
     ImageIO.write(nullImg, "png", bos)

@@ -37,9 +37,15 @@ import net.bdew.hafen.combiner.reader.TileSetReader
 import scala.annotation.tailrec
 import scala.concurrent.Future
 
-object GMap {
+class GMap(args: Args) {
   implicit val EC = Combiner.EC
-  def run(op: OpGMap, args: Args, timer: Timer): Unit = {
+
+  final val szSource = Combiner.TILE_SIZE
+  final val szGen = Combiner.TILE_SIZE * args.tileSize
+  final val tileSize = args.tileSize
+  final val nullTile = new NullTile(szGen)
+
+  def run(op: OpGMap, timer: Timer): Unit = {
     timer.mark("Start")
 
     val srcFile = new File(op.src)
@@ -57,6 +63,7 @@ object GMap {
 
     println("* Input: " + srcFile.getAbsolutePath)
     println("* Output: " + destDir.getAbsolutePath)
+    println("* Tile Size: %d x %d".format(szGen, szGen))
     println("* Loading...")
 
     val tiles = TileSetReader.load(srcFile, FingerPrints.nil) getOrElse {
@@ -66,89 +73,141 @@ object GMap {
 
     timer.mark("LOAD INPUT")
 
-    val maxZoomLevel = (Math.log(Math.max(tiles.width, tiles.height)) / Math.log(2)).ceil.toInt
+    val maxZoomLevel = (Math.log(Math.max(tiles.width / tileSize, tiles.height / tileSize)) / Math.log(2)).ceil.toInt + 1
     val size = 1 << maxZoomLevel
 
     println("* Max Zoom: %d (%d x %d)".format(maxZoomLevel, size, size))
 
-    val delta = Coord(size / 2 - tiles.width / 2, size / 2 - tiles.height / 2)
+    val delta = Coord(size / 2 * tileSize - tiles.width / 2, size / 2 * tileSize - tiles.height / 2)
 
     val baseLevelDir = new File(destDir, maxZoomLevel.toString)
 
     val baseLevel =
       Async("Generating base tiles") {
-        (for (x <- 0 until size) yield {
-          val xDir = new File(baseLevelDir, x.toString)
-          xDir.mkdirs()
-          for (y <- 0 until size if args.isEnabledNullTiles || tiles.tiles.isDefinedAt(Coord(x, y) - delta)) yield Future {
-            val tile = tiles.tiles.getOrElse(Coord(x, y) - delta, NullTile)
-            val out = new File(baseLevelDir, "%d/%d.png".format(x, y))
-            if (tile != NullTile && (args.isEnabledCoords || args.isEnabledGrid)) {
-              val img = tile.readImage()
-              val gr = img.getGraphics
-              if (args.isEnabledCoords) {
-                gr.drawString("(%d,%d)".format(x - delta.x, y - delta.y), 3, 10)
-              }
-              if (args.isEnabledGrid) {
-                gr.setColor(Color.WHITE)
-                if (tiles.tiles.isDefinedAt(Coord(x - delta.x, y - 1 - delta.y)))
-                  gr.drawLine(0, 0, Combiner.TILE_SIZE, 0)
-                if (tiles.tiles.isDefinedAt(Coord(x - 1 - delta.x, y - delta.y)))
-                  gr.drawLine(0, 0, 0, Combiner.TILE_SIZE)
-              }
-              gr.dispose()
-              ImageIO.write(img, "png", out)
-              Coord(x, y) -> MapTileFile(out)
-            } else {
-              Files.copy(tile.makeInputStream(), out.toPath)
-              Coord(x, y) -> tile
-            }
-          }
-        }).flatten
+        generateBaseLevel(baseLevelDir, tiles, size, delta)
       } waitUntilDone()
 
-    generateNextZoom(SimpleTileSet(baseLevel.toMap, size), destDir, maxZoomLevel - 1, args, timer)
+    generateNextZoom(SimpleTileSet(baseLevel.toMap, size), destDir, maxZoomLevel - 1, timer)
 
     timer.mark("DONE")
   }
 
+  private def generateBaseLevel(baseLevelDir: File, tiles: TileSet, size: Int, delta: Coord) = {
+    (0 until size).flatMap { x =>
+      val xDir = new File(baseLevelDir, x.toString)
+      xDir.mkdirs()
+      (0 until size).flatMap { y =>
+        val out = new File(baseLevelDir, "%d/%d.png".format(x, y))
+
+        // Find all existing source tiles
+        val toDraw = for (xo <- 0 until tileSize; yo <- 0 until tileSize; tile <- tiles.tiles.get(new Coord(x * tileSize + xo - delta.x, y * tileSize + yo - delta.y)) if tile != nullTile) yield (xo, yo, tile)
+
+        if (toDraw.isEmpty) {
+          // If no source tiles exist skip all the drawing stuff
+          if (args.isEnabledNullTiles) {
+            // Generate empty tile if needed
+            Some(Future {
+              nullTile.write(out)
+              Coord(x, y) -> nullTile
+            })
+          } else {
+            // Otherwise - nothing to do
+            None
+          }
+        } else {
+          Some(Future {
+            if (tileSize == 1 && !args.isEnabledGrid && !args.isEnabledCoords) {
+              // If we are generating 1x1 tiles and don't need to draw - just copy the source
+              val (_, _, tile) = toDraw.head
+              Files.copy(tile.makeInputStream(), out.toPath)
+              Coord(x, y) -> tile
+            } else {
+              // prepare image
+              val img = new BufferedImage(szGen, szGen, BufferedImage.TYPE_INT_ARGB)
+              val gr = img.getGraphics
+              gr.setColor(Color.WHITE)
+              for ((xo, yo, tile) <- toDraw) {
+                // copy tiles into image
+                gr.drawImage(tile.readImage(), xo * szSource, yo * szSource, null)
+
+                // draw coords and grid if enabled
+                if (args.isEnabledCoords) {
+                  gr.drawString("(%d,%d)".format(x * tileSize - delta.x + xo, y * tileSize - delta.y + yo), xo * szSource + 3, yo * szSource + 10)
+                }
+                if (args.isEnabledGrid) {
+                  if (tiles.tiles.isDefinedAt(Coord(x * tileSize - delta.x + xo, y * tileSize - 1 - delta.y + yo)))
+                    gr.drawLine(xo * szSource, yo * szSource, (xo + 1) * szSource, yo * szSource)
+                  if (tiles.tiles.isDefinedAt(Coord(x * tileSize - 1 - delta.x + xo, y * tileSize - delta.y + yo)))
+                    gr.drawLine(xo * szSource, yo * szSource, xo * szSource, (yo + 1) * szSource)
+                }
+              }
+              gr.dispose()
+              // save image and return it for next layer
+              ImageIO.write(img, "png", out)
+              Coord(x, y) -> MapTileFile(out)
+            }
+          })
+        }
+      }
+    }
+  }
+
   @tailrec
-  def generateNextZoom(tiles: SimpleTileSet, dest: File, thisZoom: Int, args: Args, timer: Timer): Unit = {
+  private def generateNextZoom(tiles: SimpleTileSet, dest: File, thisZoom: Int, timer: Timer): Unit = {
     timer.mark("GENERATE ZOOM %d".format(thisZoom + 1))
     val next = Async("Generating zoom level %d".format(thisZoom)) {
-      generateTiles(tiles, dest, thisZoom, args)
+      generateTiles(tiles, dest, thisZoom)
     } waitUntilDone()
 
     if (thisZoom > args.minZoom)
-      generateNextZoom(SimpleTileSet(next.toMap, tiles.size / 2), dest, thisZoom - 1, args, timer)
+      generateNextZoom(SimpleTileSet(next.toMap, tiles.size / 2), dest, thisZoom - 1, timer)
   }
 
-  def generateTiles(tiles: BaseTileSet, dest: File, zl: Int, args: Args) = {
+  private def generateTiles(tiles: BaseTileSet, dest: File, zl: Int) = {
     val dir = new File(dest, zl.toString)
-    for {
-      x <- tiles.minX / 2 until tiles.maxX / 2
-      y <- tiles.minY / 2 until tiles.maxY / 2
-    } yield Future {
-      val toDraw = for (xo <- 0 to 1; yo <- 0 to 1; tile <- tiles.tiles.get(new Coord(x * 2 + xo, y * 2 + yo)) if tile != NullTile) yield (xo, yo, tile)
-      val out = new File(dir, "%d/%d.png".format(x, y))
-      out.getParentFile.mkdirs()
-      if (toDraw.isEmpty) {
-        if (args.isEnabledNullTiles)
-          NullTile.write(out)
-        Coord(x, y) -> NullTile
-      } else {
-        val img = new BufferedImage(Combiner.TILE_SIZE * 2, Combiner.TILE_SIZE * 2, BufferedImage.TYPE_INT_ARGB)
-        val graphics = img.getGraphics
-        for ((xo, yo, tile) <- toDraw)
-          graphics.drawImage(tile.readImage(), xo * Combiner.TILE_SIZE, yo * Combiner.TILE_SIZE, null)
-        graphics.dispose()
-        val scaled = new BufferedImage(Combiner.TILE_SIZE, Combiner.TILE_SIZE, BufferedImage.TYPE_INT_ARGB)
-        val scaledGraphics = scaled.createGraphics()
-        scaledGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, args.interpolationMode)
-        scaledGraphics.drawImage(img, 0, 0, Combiner.TILE_SIZE, Combiner.TILE_SIZE, null)
-        ImageIO.write(scaled, "png", out)
-        Coord(x, y) -> MapTileFile(out)
+    (for (x <- tiles.minX / 2 until tiles.maxX / 2) yield {
+      val xDir = new File(dir, x.toString)
+      xDir.mkdirs()
+      for (y <- tiles.minY / 2 until tiles.maxY / 2) yield {
+        // Find all existing tiles from previous level
+        val toDraw = for (xo <- 0 to 1; yo <- 0 to 1; tile <- tiles.tiles.get(new Coord(x * 2 + xo, y * 2 + yo)) if tile != nullTile) yield (xo, yo, tile)
+        val out = new File(xDir, y + ".png")
+        if (toDraw.isEmpty) {
+          // No tiles were found
+          if (args.isEnabledNullTiles) {
+            // write null tile (if enabled) and return it for next layer
+            Some(Future {
+              nullTile.write(out)
+              Coord(x, y) -> nullTile
+            })
+          } else {
+            // No need for null tile, nothing to do here
+            None
+          }
+        } else Some(Future {
+          // Prepare full size image
+          val img = new BufferedImage(szGen * 2, szGen * 2, BufferedImage.TYPE_INT_ARGB)
+          val graphics = img.getGraphics
+
+          // Copy tiles from previous layer to full size image
+          for ((xo, yo, tile) <- toDraw)
+            graphics.drawImage(tile.readImage(), xo * szGen, yo * szGen, null)
+
+          graphics.dispose()
+
+          // prepare final image
+          val scaled = new BufferedImage(szGen, szGen, BufferedImage.TYPE_INT_ARGB)
+          val scaledGraphics = scaled.createGraphics()
+
+          // resize full size image to final size
+          scaledGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, args.interpolationMode)
+          scaledGraphics.drawImage(img, 0, 0, szGen, szGen, null)
+
+          // save final size image
+          ImageIO.write(scaled, "png", out)
+          Coord(x, y) -> MapTileFile(out)
+        })
       }
-    }
+    }).flatten.flatten
   }
 }

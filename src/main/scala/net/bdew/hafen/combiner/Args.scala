@@ -52,6 +52,8 @@ case class OpImages(path: String) extends Operation(imgOut = true, mapOut = fals
 
 case class ArgMinZoom(level: Int) extends Argument
 
+case class ArgTileSize(size: Int) extends Argument
+
 abstract class ArgInterpolation(val mode: AnyRef) extends Argument
 
 case object InterpolNearest extends ArgInterpolation(RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR)
@@ -94,6 +96,8 @@ class Args(args: List[Argument]) {
   lazy val isEnabledNullTiles = getFlag[FlagNullTiles] getOrElse false
 
   lazy val minZoom = findArg[ArgMinZoom].map(_.level).getOrElse(0)
+  lazy val tileSize = findArg[ArgTileSize].map(_.size).getOrElse(1)
+
   lazy val interpolationMode = findArg[ArgInterpolation].map(_.mode).getOrElse(RenderingHints.VALUE_INTERPOLATION_BILINEAR)
 
   def getMapWriter =
@@ -113,6 +117,7 @@ class Args(args: List[Argument]) {
       if (isEnabledNullTiles) Args.warn("Useless flag in current mode: --nulltiles")
       if (findArgs[ArgInterpolation].nonEmpty) Args.warn("Useless flag in current mode: --interpolation")
       if (findArg[ArgMinZoom].nonEmpty) Args.warn("Useless flag in current mode: --minzoom")
+      if (findArg[ArgTileSize].nonEmpty) Args.warn("Useless flag in current mode: --tilesize")
     }
     if (findArgs[ArgInterpolation].length > 1) Args.warn("multiple --interpolation flags will be ignored")
     if (findArgs[ArgMinZoom].length > 1) Args.warn("multiple --minzoom flags will be ignored")
@@ -180,6 +185,9 @@ object Args {
 
     case "--minzoom" :: IntParam(level) :: tail =>
       ArgMinZoom(level) +: realParse(tail)
+
+    case "--tilesize" :: IntParam(size) :: tail =>
+      ArgTileSize(size) +: realParse(tail)
 
     case str :: tail if str.startsWith("--") =>
       err("Invalid flag '%s'", str)

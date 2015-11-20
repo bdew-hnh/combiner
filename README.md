@@ -49,6 +49,7 @@ Special options for this mode:
  * **--nulltiles** - will force generation of tiles that have no data (fully transparent)
  * **--minzoom** - specifies the minimum zoom level to generate (default is 0)
  * **--interpolation {bilinear|bicubic|nearest}** - chooses what interpolation method to use for resizing (default is bilinear)
+ * **--tilesize** - sets tile size of the highest zoom level, e.g. 5 will make each base tile be 5x5 game map tiles (500x500 pixels)
 
 ### General command line options
 
