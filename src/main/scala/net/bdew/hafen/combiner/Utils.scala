@@ -35,4 +35,27 @@ object Utils {
   def fullyWrite(ch: WritableByteChannel, buf: ByteBuffer): Unit =
     while (buf.hasRemaining)
       ch.write(buf)
+
+  def withResource[T <: AutoCloseable, R](resource: T)(block: T => R): R = {
+    var t: Throwable = null
+    try {
+      block(resource)
+    } catch {
+      case x: Throwable =>
+        t = x
+        throw x
+    } finally {
+      if (resource != null) {
+        if (t != null) {
+          try {
+            resource.close()
+          } catch {
+            case y: Throwable => t.addSuppressed(y)
+          }
+        } else {
+          resource.close()
+        }
+      }
+    }
+  }
 }

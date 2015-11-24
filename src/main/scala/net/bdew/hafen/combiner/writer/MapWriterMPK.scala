@@ -37,9 +37,8 @@ import scala.concurrent.Future
 
 object MapWriterMPK extends MapWriter {
   override def doWriteAsync(path: File, ident: String, set: TileSet) = List(Future({
-    val zipStream = new ZipOutputStream(new FileOutputStream(new File(path, ident + ".mpk")))
     val crc = new CRC32()
-    try {
+    Utils.withResource(new ZipOutputStream(new FileOutputStream(new File(path, ident + ".mpk")))) { zipStream =>
       val reverseFp = set.fingerPrints.map(_.swap)
       val fpBytes = new ByteArrayOutputStream()
       val fpWriter = new OutputStreamWriter(fpBytes)
@@ -51,7 +50,9 @@ object MapWriterMPK extends MapWriter {
         if (reverseFp.contains(coord))
           fpWriter.write("tile_%d_%d.png:%s\n".format(relocated.x, relocated.y, reverseFp(coord)))
         val buf = ByteBuffer.allocate(tile.size)
-        Utils.fullyRead(Channels.newChannel(tile.makeInputStream()), buf)
+        Utils.withResource(tile.makeInputStream()) { input =>
+          Utils.fullyRead(Channels.newChannel(input), buf)
+        }
         buf.flip()
         crc.reset()
         crc.update(buf)
@@ -71,8 +72,6 @@ object MapWriterMPK extends MapWriter {
       zipStream.putNextEntry(new ZipEntry("fingerprints.txt"))
       zipStream.write(fpBytes.toByteArray)
       zipStream.closeEntry()
-    } finally {
-      zipStream.close()
     }
   }))
 }

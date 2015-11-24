@@ -37,19 +37,22 @@ object FingerPrints {
 
   def from(dataFile: File): FingerPrints =
     if (dataFile.canRead && dataFile.isFile)
-      from(new FileInputStream(dataFile))
+      Utils.withResource(new FileInputStream(dataFile)) { stream =>
+        from(stream)
+      }
     else nil
 
   def from(stream: InputStream): FingerPrints = {
-    val reader = new BufferedReader(new InputStreamReader(stream))
-    val data = Iterator.continually(reader.readLine())
-      .takeWhile(_ != null)
-      .map(_.split(":"))
-      .filter(_.size > 1)
-      .filterNot(x => BadHashes.bad.contains(x(1)))
-      .map(x => x(0) -> x(1))
-      .toMap
-    new FingerPrints(data)
+    Utils.withResource(new BufferedReader(new InputStreamReader(stream))) { reader =>
+      val data = Iterator.continually(reader.readLine())
+        .takeWhile(_ != null)
+        .map(_.split(":"))
+        .filter(_.size > 1)
+        .filterNot(x => BadHashes.bad.contains(x(1)))
+        .map(x => x(0) -> x(1))
+        .toMap
+      new FingerPrints(data)
+    }
   }
 }
 

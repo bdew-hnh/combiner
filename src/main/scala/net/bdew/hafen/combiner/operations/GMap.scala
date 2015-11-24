@@ -28,7 +28,6 @@ package net.bdew.hafen.combiner.operations
 import java.awt.image.BufferedImage
 import java.awt.{Color, RenderingHints}
 import java.io.File
-import java.nio.file.Files
 import javax.imageio.ImageIO
 
 import net.bdew.hafen.combiner._
@@ -107,7 +106,7 @@ class GMap(args: Args) {
           if (args.isEnabledNullTiles) {
             // Generate empty tile if needed
             Some(Future {
-              nullTile.write(out)
+              nullTile.copyTo(out)
               Coord(x, y) -> nullTile
             })
           } else {
@@ -119,7 +118,7 @@ class GMap(args: Args) {
             if (tileSize == 1 && !args.isEnabledGrid && !args.isEnabledCoords) {
               // If we are generating 1x1 tiles and don't need to draw - just copy the source
               val (_, _, tile) = toDraw.head
-              Files.copy(tile.makeInputStream(), out.toPath)
+              tile.copyTo(out)
               Coord(x, y) -> tile
             } else {
               // prepare image
@@ -177,7 +176,7 @@ class GMap(args: Args) {
           if (args.isEnabledNullTiles) {
             // write null tile (if enabled) and return it for next layer
             Some(Future {
-              nullTile.write(out)
+              nullTile.copyTo(out)
               Coord(x, y) -> nullTile
             })
           } else {

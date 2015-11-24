@@ -27,6 +27,7 @@ package net.bdew.hafen.combiner
 
 import java.awt.image.BufferedImage
 import java.io._
+import java.nio.file.Files
 import java.util.zip.{ZipEntry, ZipFile}
 import javax.imageio.ImageIO
 
@@ -36,6 +37,7 @@ trait MapTile {
   def size: Int
   def makeInputStream(): InputStream
   def readImage(): BufferedImage
+  def copyTo(dest: File): Unit
 }
 
 class NullTile(sz: Int) extends MapTile {
@@ -52,11 +54,10 @@ class NullTile(sz: Int) extends MapTile {
   override def lastModified = Long.MinValue
   override def size = nullBytes.length
 
-  def write(out: File) = {
-    val fs = new FileOutputStream(out)
-    fs.write(nullBytes)
-    fs.close()
-  }
+  override def copyTo(out: File) =
+    Utils.withResource(new FileOutputStream(out)) { fs =>
+      fs.write(nullBytes)
+    }
 }
 
 case class MapTileFile(file: File) extends MapTile {
@@ -65,6 +66,12 @@ case class MapTileFile(file: File) extends MapTile {
   override lazy val size = file.length().toInt
   override def makeInputStream() = new FileInputStream(file)
   override def readImage() = ImageIO.read(file)
+
+  override def copyTo(dest: File) = {
+    Utils.withResource(makeInputStream()) { input =>
+      Files.copy(input, dest.toPath)
+    }
+  }
 }
 
 case class MapTileMPK(zipFile: ZipFile, ent: ZipEntry) extends MapTile {
@@ -72,7 +79,16 @@ case class MapTileMPK(zipFile: ZipFile, ent: ZipEntry) extends MapTile {
   override lazy val lastModified = ent.getLastModifiedTime.toMillis
   override lazy val size = ent.getSize.toInt
   override def makeInputStream() = zipFile.getInputStream(ent)
-  override def readImage() = ImageIO.read(makeInputStream())
+  override def readImage() =
+    Utils.withResource(makeInputStream()) {
+      stream => ImageIO.read(stream)
+    }
+
+  override def copyTo(dest: File) = {
+    Utils.withResource(makeInputStream()) { input =>
+      Files.copy(input, dest.toPath)
+    }
+  }
 }
 
 
