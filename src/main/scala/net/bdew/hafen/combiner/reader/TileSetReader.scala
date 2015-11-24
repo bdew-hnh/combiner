@@ -36,11 +36,13 @@ trait TileSetReader {
 
   def checkFarTiles(tiles: List[(Coord, MapTile)], source: String) = {
     val coords = tiles.map(_._1)
-    for (c1 <- coords) {
-      val md = coords.filterNot(_ == c1).map(_.distance(c1)).min
-      if (md > 5) {
-        println("Tile %s in %s is %.0f tiles away from other tiles! This is probably bad data.".format(c1, source, md))
-        sys.exit(-1)
+    if (coords.size > 1) {
+      for (c1 <- coords) {
+        val md = coords.filterNot(_ == c1).map(_.distance(c1)).min
+        if (md > 5) {
+          println("Tile (%d,%d) in %s is %.0f tiles away from other tiles! This is probably bad data.".format(c1.x, c1.y, source, md))
+          sys.exit(-1)
+        }
       }
     }
   }
